@@ -1,50 +1,61 @@
 const WORKGROUP_SIZE = 8
-const GRID_SIZE = 32
+const GRID_SIZE = 256
 
 const kSimulationShaderCode = `
   struct CellState {
-    alive: u32,
+    a: f32,
+    b: f32,
   };
 
   @group(0) @binding(0) var<uniform> grid: vec2f;
   @group(0) @binding(1) var<storage> cellStateIn: array<CellState>;
   @group(0) @binding(2) var<storage, read_write> cellStateOut: array<CellState>;
 
-  fn cellIndex(cell: vec2u) -> u32 {
-    return (cell.y % u32(grid.y)) * u32(grid.x) +
-           (cell.x % u32(grid.x));
+  fn cellIndex(x: u32, y: u32) -> u32 {
+    return (y % u32(grid.y)) * u32(grid.x) + (x % u32(grid.x));
   }
 
-  fn cellActive(x: u32, y: u32) -> u32 {
-    return cellStateIn[cellIndex(vec2(x, y))].alive;
+  fn laplaceA(x: u32, y: u32) -> f32 {
+    let h = u32(grid.y);
+    let w = u32(grid.x);
+    let x0 = (x - 1 + w) % w;
+    let y0 = (y - 1 + h) % h;
+    let x1 = x;
+    let y1 = y;
+    let x2 = (x + 1) % w;
+    let y2 = (y + 1) % h;
+    return (cellStateIn[cellIndex(x0, y0)].a * 0.05 + cellStateIn[cellIndex(x1, y0)].a * 0.2 + cellStateIn[cellIndex(x2, y0)].a * 0.05 +
+            cellStateIn[cellIndex(x0, y1)].a * 0.2  + cellStateIn[cellIndex(x1, y1)].a * -1  + cellStateIn[cellIndex(x2, y1)].a * 0.2 +
+            cellStateIn[cellIndex(x0, y2)].a * 0.05 + cellStateIn[cellIndex(x1, y2)].a * 0.2 + cellStateIn[cellIndex(x2, y2)].a * 0.05);
   }
+
+  fn laplaceB(x: u32, y: u32) -> f32 {
+    let h = u32(grid.y);
+    let w = u32(grid.x);
+    let x0 = (x - 1 + w) % w;
+    let y0 = (y - 1 + h) % h;
+    let x1 = x;
+    let y1 = y;
+    let x2 = (x + 1) % w;
+    let y2 = (y + 1) % h;
+    return (cellStateIn[cellIndex(x0, y0)].b * 0.05 + cellStateIn[cellIndex(x1, y0)].b * 0.2 + cellStateIn[cellIndex(x2, y0)].b * 0.05 +
+            cellStateIn[cellIndex(x0, y1)].b * 0.2  + cellStateIn[cellIndex(x1, y1)].b * -1  + cellStateIn[cellIndex(x2, y1)].b * 0.2 +
+            cellStateIn[cellIndex(x0, y2)].b * 0.05 + cellStateIn[cellIndex(x1, y2)].b * 0.2 + cellStateIn[cellIndex(x2, y2)].b * 0.05);
+  }
+
+  const dA = 1.0;
+  const dB = 0.5;
+  const feed = 0.055;
+  const kill = 0.062;
 
   @compute
   @workgroup_size(${WORKGROUP_SIZE}, ${WORKGROUP_SIZE})
   fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
-    let activeNeighbors = cellActive(cell.x+1, cell.y+1) +
-                          cellActive(cell.x+1, cell.y) +
-                          cellActive(cell.x+1, cell.y-1) +
-                          cellActive(cell.x, cell.y-1) +
-                          cellActive(cell.x-1, cell.y-1) +
-                          cellActive(cell.x-1, cell.y) +
-                          cellActive(cell.x-1, cell.y+1) +
-                          cellActive(cell.x, cell.y+1);
-
-    let i = cellIndex(cell.xy);
-
-    // Conway's game of life rules:
-    switch activeNeighbors {
-      case 2: { // Active cells with 2 neighbors stay active.
-        cellStateOut[i] = cellStateIn[i];
-      }
-      case 3: { // Cells with 3 neighbors become or stay active.
-        cellStateOut[i].alive = 1;
-      }
-      default: { // Cells with < 2 or > 3 neighbors become inactive.
-        cellStateOut[i].alive = 0;
-      }
-    }
+    let i = cellIndex(cell.x, cell.y);
+    let a = cellStateIn[i].a;
+    let b = cellStateIn[i].b;
+    cellStateOut[i].a = a + (dA * laplaceA(cell.x, cell.y)) - (a * b * b) + feed * (1 - a);
+    cellStateOut[i].b = b + (dB * laplaceB(cell.x, cell.y)) + (a * b * b) - (kill + feed) * b;
   }
 `
 
@@ -59,15 +70,20 @@ const kCellShaderCode = `
     @location(0) cell: vec2f,
   };
 
+  struct CellState {
+    a: f32,
+    b: f32,
+  };
+
   @group(0) @binding(0) var<uniform> grid: vec2f;
-  @group(0) @binding(1) var<storage> cellState: array<u32>;
+  @group(0) @binding(1) var<storage> cellState: array<CellState>;
 
   @vertex
   fn vertexMain(input: VertexInput) -> VertexOutput {
     let i = f32(input.instance);
 
     let cell = vec2f(i % grid.x, floor(i / grid.x));
-    let state = f32(cellState[input.instance]);
+    let state = cellState[input.instance].b * 2.0;  // サイズ拡大
 
     let cellOffset = cell / grid * 2;
     let gridPos = (input.pos * state + 1) / grid - 1 + cellOffset;
@@ -115,11 +131,15 @@ class WgslFramework {
   }
 }
 
+function irandom(min, max) {
+  return Math.floor(Math.random() * (max - min) + min)
+}
+
 class MyApp extends WgslFramework {
   page = 0
 
   setUpComputeData() {
-    const cellStateArray = new Uint32Array(GRID_SIZE * GRID_SIZE)
+    const cellStateArray = new Float32Array(GRID_SIZE * GRID_SIZE * 2)
 
     const cellStateStorage = [
       this.device.createBuffer({
@@ -134,9 +154,25 @@ class MyApp extends WgslFramework {
       }),
     ]
 
-    for (let i = 0; i < cellStateArray.length; ++i) {
-      cellStateArray[i] = Math.random() > 0.6 ? 1 : 0
+    for (let i = 0; i < cellStateArray.length; i += 2) {
+      let a = 1, b = 0
+      cellStateArray[i + 0] = a
+      cellStateArray[i + 1] = b
     }
+    const n = Math.floor(irandom(1, 16))
+    for (let k = 0; k < n; ++k) {
+      const size = Math.floor(irandom(2, 5))
+      const x = Math.floor(irandom(size, GRID_SIZE - size))
+      const y = Math.floor(irandom(size, GRID_SIZE - size))
+      for (let i = -size; i <= size; ++i) {
+        for (let j = -size; j <= size; ++j) {
+          const p = (((y + i) * GRID_SIZE) + (x + j)) * 2
+          cellStateArray[p + 0] = 0.0
+          cellStateArray[p + 1] = 0.5
+        }
+      }
+    }
+
     this.device.queue.writeBuffer(cellStateStorage[0], 0, cellStateArray)
     this.device.queue.writeBuffer(cellStateStorage[1], 0, cellStateArray)  // Dummy.
 
@@ -151,13 +187,13 @@ class MyApp extends WgslFramework {
 
   setUpRenderingData() {
     const vertices = new Float32Array([
-      -0.8, -0.8,
-       0.8, -0.8,
-       0.8,  0.8,
+      -1.0, -1.0,
+       1.0, -1.0,
+       1.0,  1.0,
 
-      -0.8, -0.8,
-       0.8,  0.8,
-      -0.8,  0.8,
+      -1.0, -1.0,
+       1.0,  1.0,
+      -1.0,  1.0,
     ])
 
     const vertexBuffer = this.device.createBuffer({
@@ -298,14 +334,16 @@ class MyApp extends WgslFramework {
   draw() {
     const encoder = this.device.createCommandEncoder()
 
-    const computePass = encoder.beginComputePass()
-    computePass.setPipeline(this.simulationPipeline)
-    computePass.setBindGroup(0, this.bindGroups[this.page])
-    const workgroupCount = Math.ceil(GRID_SIZE / WORKGROUP_SIZE)
-    computePass.dispatchWorkgroups(workgroupCount, workgroupCount)
-    computePass.end()
+    for (let i = 0; i < 8; ++i) {
+      const computePass = encoder.beginComputePass()
+      computePass.setPipeline(this.simulationPipeline)
+      computePass.setBindGroup(0, this.bindGroups[this.page])
+      const workgroupCount = Math.ceil(GRID_SIZE / WORKGROUP_SIZE)
+      computePass.dispatchWorkgroups(workgroupCount, workgroupCount)
+      computePass.end()
 
-    this.page = 1 - this.page
+      this.page = 1 - this.page
+    }
 
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
@@ -334,7 +372,7 @@ async function main() {
   myapp.setUpRenderingData()
   myapp.setUpPipelineData()
 
-  const UPDATE_INTERVAL = 100
+  const UPDATE_INTERVAL = 20
   setInterval(myapp.draw.bind(myapp), UPDATE_INTERVAL)
 }
 
