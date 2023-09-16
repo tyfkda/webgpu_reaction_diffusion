@@ -2,9 +2,13 @@ const WORKGROUP_SIZE = 8
 const GRID_SIZE = 32
 
 const kSimulationShaderCode = `
+  struct CellState {
+    alive: u32,
+  };
+
   @group(0) @binding(0) var<uniform> grid: vec2f;
-  @group(0) @binding(1) var<storage> cellStateIn: array<u32>;
-  @group(0) @binding(2) var<storage, read_write> cellStateOut: array<u32>;
+  @group(0) @binding(1) var<storage> cellStateIn: array<CellState>;
+  @group(0) @binding(2) var<storage, read_write> cellStateOut: array<CellState>;
 
   fn cellIndex(cell: vec2u) -> u32 {
     return (cell.y % u32(grid.y)) * u32(grid.x) +
@@ -12,7 +16,7 @@ const kSimulationShaderCode = `
   }
 
   fn cellActive(x: u32, y: u32) -> u32 {
-    return cellStateIn[cellIndex(vec2(x, y))];
+    return cellStateIn[cellIndex(vec2(x, y))].alive;
   }
 
   @compute
@@ -35,10 +39,10 @@ const kSimulationShaderCode = `
         cellStateOut[i] = cellStateIn[i];
       }
       case 3: { // Cells with 3 neighbors become or stay active.
-        cellStateOut[i] = 1;
+        cellStateOut[i].alive = 1;
       }
       default: { // Cells with < 2 or > 3 neighbors become inactive.
-        cellStateOut[i] = 0;
+        cellStateOut[i].alive = 0;
       }
     }
   }
