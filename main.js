@@ -6,18 +6,25 @@ const kSimulationShaderCode = `
     a: f32,
     b: f32,
   };
+  struct Uniform {
+    grid: vec2f,
+    dA: f32,
+    dB: f32,
+    feed: f32,
+    kill: f32,
+  };
 
-  @group(0) @binding(0) var<uniform> grid: vec2f;
+  @group(0) @binding(0) var<uniform> param: Uniform;
   @group(0) @binding(1) var<storage> cellStateIn: array<CellState>;
   @group(0) @binding(2) var<storage, read_write> cellStateOut: array<CellState>;
 
   fn cellIndex(x: u32, y: u32) -> u32 {
-    return (y % u32(grid.y)) * u32(grid.x) + (x % u32(grid.x));
+    return (y % u32(param.grid.y)) * u32(param.grid.x) + (x % u32(param.grid.x));
   }
 
   fn laplaceA(x: u32, y: u32) -> f32 {
-    let h = u32(grid.y);
-    let w = u32(grid.x);
+    let h = u32(param.grid.y);
+    let w = u32(param.grid.x);
     let x0 = (x - 1 + w) % w;
     let y0 = (y - 1 + h) % h;
     let x1 = x;
@@ -30,8 +37,8 @@ const kSimulationShaderCode = `
   }
 
   fn laplaceB(x: u32, y: u32) -> f32 {
-    let h = u32(grid.y);
-    let w = u32(grid.x);
+    let h = u32(param.grid.y);
+    let w = u32(param.grid.x);
     let x0 = (x - 1 + w) % w;
     let y0 = (y - 1 + h) % h;
     let x1 = x;
@@ -43,14 +50,14 @@ const kSimulationShaderCode = `
             cellStateIn[cellIndex(x0, y2)].b * 0.05 + cellStateIn[cellIndex(x1, y2)].b * 0.2 + cellStateIn[cellIndex(x2, y2)].b * 0.05);
   }
 
-  const dA = 1.0;
-  const dB = 0.5;
-  const feed = 0.055;
-  const kill = 0.062;
-
   @compute
   @workgroup_size(${WORKGROUP_SIZE}, ${WORKGROUP_SIZE})
   fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
+    let dA = param.dA;
+    let dB = param.dB;
+    let feed = param.feed;
+    let kill = param.kill;
+
     let i = cellIndex(cell.x, cell.y);
     let a = cellStateIn[i].a;
     let b = cellStateIn[i].b;
@@ -75,18 +82,26 @@ const kCellShaderCode = `
     b: f32,
   };
 
-  @group(0) @binding(0) var<uniform> grid: vec2f;
+  struct Uniform {
+    grid: vec2f,
+    dA: f32,
+    dB: f32,
+    feed: f32,
+    k: f32,
+  };
+
+  @group(0) @binding(0) var<uniform> param: Uniform;
   @group(0) @binding(1) var<storage> cellState: array<CellState>;
 
   @vertex
   fn vertexMain(input: VertexInput) -> VertexOutput {
     let i = f32(input.instance);
 
-    let cell = vec2f(i % grid.x, floor(i / grid.x));
+    let cell = vec2f(i % param.grid.x, floor(i / param.grid.x));
     let state = cellState[input.instance].b * 2.0;  // サイズ拡大
 
-    let cellOffset = cell / grid * 2;
-    let gridPos = (input.pos * state + 1) / grid - 1 + cellOffset;
+    let cellOffset = cell / param.grid * 2;
+    let gridPos = (input.pos * state + 1) / param.grid - 1 + cellOffset;
 
     var output: VertexOutput;
     output.pos = vec4f(gridPos, 0, 1);
@@ -100,7 +115,7 @@ const kCellShaderCode = `
 
   @fragment
   fn fragmentMain(input: FragInput) -> @location(0) vec4f {
-    let c = input.cell / grid;
+    let c = input.cell / param.grid;
     return vec4f(c, 1 - c.x, 1);
   }
 `
@@ -131,8 +146,12 @@ class WgslFramework {
   }
 }
 
+function frandom(min, max) {
+  return Math.random() * (max - min) + min
+}
+
 function irandom(min, max) {
-  return Math.floor(Math.random() * (max - min) + min)
+  return Math.floor(frandom(min, max))
 }
 
 class MyApp extends WgslFramework {
@@ -155,9 +174,8 @@ class MyApp extends WgslFramework {
     ]
 
     for (let i = 0; i < cellStateArray.length; i += 2) {
-      let a = 1, b = 0
-      cellStateArray[i + 0] = a
-      cellStateArray[i + 1] = b
+      cellStateArray[i + 0] = 1.0
+      cellStateArray[i + 1] = 0.0
     }
     const n = Math.floor(irandom(1, 16))
     for (let k = 0; k < n; ++k) {
@@ -219,9 +237,15 @@ class MyApp extends WgslFramework {
       code: kCellShaderCode,
     })
 
-    const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE])
+    const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.055, 0.062])
+    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.026, 0.061])
+    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.057])
+    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.065])  // バクテリア
+    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.060, 0.062])  // Coral pattern
+    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.9, 0.61, 0.023, 0.052])  // 動き続ける
+
     const uniformBuffer = this.device.createBuffer({
-      label: 'Grid Uniforms',
+      label: 'Uniform parameter',
       size: uniformArray.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     })
