@@ -158,20 +158,34 @@ class MyApp extends WgslFramework {
   page = 0
 
   setUpComputeData() {
-    const cellStateArray = new Float32Array(GRID_SIZE * GRID_SIZE * 2)
+    const BUFFER_SIZE = GRID_SIZE * GRID_SIZE * 2 * 4
 
     const cellStateStorage = [
       this.device.createBuffer({
         label: 'Cell State A',
-        size: cellStateArray.byteLength,
+        size: BUFFER_SIZE,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       }),
       this.device.createBuffer({
         label: 'Cell State B',
-        size: cellStateArray.byteLength,
+        size: BUFFER_SIZE,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       }),
     ]
+
+    const simulationShaderModule = this.device.createShaderModule({
+      label: 'Game of Life simulation shader',
+      code: kSimulationShaderCode,
+    })
+
+    this.cellStateStorage = cellStateStorage
+    this.simulationShaderModule = simulationShaderModule
+
+    this.randomizeCellState()
+  }
+
+  randomizeCellState() {
+    const cellStateArray = new Float32Array(GRID_SIZE * GRID_SIZE * 2)
 
     for (let i = 0; i < cellStateArray.length; i += 2) {
       cellStateArray[i + 0] = 1.0
@@ -191,16 +205,7 @@ class MyApp extends WgslFramework {
       }
     }
 
-    this.device.queue.writeBuffer(cellStateStorage[0], 0, cellStateArray)
-    this.device.queue.writeBuffer(cellStateStorage[1], 0, cellStateArray)  // Dummy.
-
-    const simulationShaderModule = this.device.createShaderModule({
-      label: 'Game of Life simulation shader',
-      code: kSimulationShaderCode,
-    })
-
-    this.cellStateStorage = cellStateStorage
-    this.simulationShaderModule = simulationShaderModule
+    this.device.queue.writeBuffer(this.cellStateStorage[0], 0, cellStateArray)
   }
 
   setUpRenderingData() {
@@ -398,6 +403,10 @@ async function main() {
 
   const UPDATE_INTERVAL = 20
   setInterval(myapp.draw.bind(myapp), UPDATE_INTERVAL)
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    myapp.randomizeCellState()
+  })
 }
 
 await main()
