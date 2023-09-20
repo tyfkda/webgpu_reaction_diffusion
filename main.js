@@ -224,11 +224,8 @@ class MyApp extends WgslFramework {
     const vertices = new Float32Array([
       -1.0, -1.0,
        1.0, -1.0,
+       -1.0,  1.0,
        1.0,  1.0,
-
-      -1.0, -1.0,
-       1.0,  1.0,
-      -1.0,  1.0,
     ])
 
     const vertexBuffer = this.device.createBuffer({
@@ -368,6 +365,9 @@ class MyApp extends WgslFramework {
             alpha: {srcFactor: 'zero', dstFactor: 'one', operation: 'add'},
           },
         }],
+      },
+      primitive: {
+        topology: 'triangle-strip',
       },
     })
 
