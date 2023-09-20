@@ -75,6 +75,7 @@ const kCellShaderCode = `
   struct VertexOutput {
     @builtin(position) pos: vec4f,
     @location(0) cell: vec2f,
+    @location(1) state: vec2f,
   };
 
   struct CellState {
@@ -98,25 +99,28 @@ const kCellShaderCode = `
     let i = f32(input.instance);
 
     let cell = vec2f(i % param.grid.x, floor(i / param.grid.x));
-    let state = cellState[input.instance].b * 2.0;  // サイズ拡大
+    let state = cellState[input.instance];
 
     let cellOffset = cell / param.grid * 2;
-    let gridPos = (input.pos * state + 1) / param.grid - 1 + cellOffset;
+    let gridPos = (input.pos + 1) / param.grid - 1 + cellOffset;
 
     var output: VertexOutput;
     output.pos = vec4f(gridPos, 0, 1);
     output.cell = cell;
+    output.state = vec2f(state.a, state.b);
     return output;
   }
 
   struct FragInput {
     @location(0) cell: vec2f,
+    @location(1) state: vec2f,
   };
 
   @fragment
   fn fragmentMain(input: FragInput) -> @location(0) vec4f {
     let c = input.cell / param.grid;
-    return vec4f(c, 1 - c.x, 1);
+    let a = min(input.state.y * 3.0, 1.0);
+    return vec4f(c, 1 - c.x, a);
   }
 `
 
@@ -359,6 +363,10 @@ class MyApp extends WgslFramework {
         entryPoint: 'fragmentMain',
         targets: [{
           format: this.canvasFormat,
+          blend: {
+            color: {srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add'},
+            alpha: {srcFactor: 'zero', dstFactor: 'one', operation: 'add'},
+          },
         }],
       },
     })
