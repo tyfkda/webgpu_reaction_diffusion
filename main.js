@@ -142,7 +142,7 @@ class MyApp extends WgslFramework {
       code: this.shaderCodes[1],
     })
 
-    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.055, 0.062])
+    const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.055, 0.062])
     // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.026, 0.061])  // 点々
     // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.057])  // あみあみ
     // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.065])  // バクテリア
@@ -151,7 +151,7 @@ class MyApp extends WgslFramework {
 
     // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4, 0.1*4, 0.082, 0.060])  // なにか
     // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4.5, 0.1*4.5, 0.092, 0.057])
-    const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.92, 0.5, 0.088, 0.057])
+    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.92, 0.5, 0.088, 0.057])
 
     const uniformBuffer = this.device.createBuffer({
       label: 'Uniform parameter',
@@ -293,8 +293,8 @@ class MyApp extends WgslFramework {
       colorAttachments: [{
         view: this.context.getCurrentTexture().createView(),
         loadOp: 'clear',
-        // clearValue: { r: 0, g: 0, b: 0.2, a: 1.0 },
-        clearValue: { r: 0xe1/255.0, g: 0xdd/255.0, b: 0xd3/255.0, a: 1.0 },
+        clearValue: { r: 0, g: 0, b: 0.2, a: 1.0 },
+        // clearValue: { r: 0xe1/255.0, g: 0xdd/255.0, b: 0xd3/255.0, a: 1.0 },
         storeOp: 'store',
       }]
     })
@@ -355,7 +355,7 @@ class MyApp extends WgslFramework {
           for (let dx = dx0; dx <= dx1; ++dx) {
             if (dx * dx + dy * dy >= radius2)
               continue
-            cellStateArray[((y + dy) * GRID_SIZE + (x + dx)) * 2 + 1] = 0.1  // b = 0
+            cellStateArray[((y + dy) * GRID_SIZE + (x + dx)) * 2 + 1] = 0.05  // b = 0
           }
         }
       }

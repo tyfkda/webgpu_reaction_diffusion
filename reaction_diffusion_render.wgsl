@@ -49,8 +49,8 @@ struct FragInput {
 
 @fragment
 fn fragmentMain(input: FragInput) -> @location(0) vec4f {
+    let c = input.cell / param.grid;
     let a = min(input.state.y * 3.0, 1.0);
-    // let c = input.cell / param.grid;
-    // return vec4f(c, 1 - c.x, a);
-    return vec4f(0x78/255.0, 0x45/255.0, 0x2a/255.0, a);
+    return vec4f(c, 1 - c.x, a);
+    // return vec4f(0x78/255.0, 0x45/255.0, 0x2a/255.0, a);
 }
