@@ -1,130 +1,6 @@
 const WORKGROUP_SIZE = 8
 const GRID_SIZE = 256
 
-const kSimulationShaderCode = `
-  struct CellState {
-    a: f32,
-    b: f32,
-  };
-  struct Uniform {
-    grid: vec2f,
-    dA: f32,
-    dB: f32,
-    feed: f32,
-    kill: f32,
-  };
-
-  @group(0) @binding(0) var<uniform> param: Uniform;
-  @group(0) @binding(1) var<storage> cellStateIn: array<CellState>;
-  @group(0) @binding(2) var<storage, read_write> cellStateOut: array<CellState>;
-
-  fn cellIndex(x: u32, y: u32) -> u32 {
-    return (y % u32(param.grid.y)) * u32(param.grid.x) + (x % u32(param.grid.x));
-  }
-
-  fn laplaceA(x: u32, y: u32) -> f32 {
-    let h = u32(param.grid.y);
-    let w = u32(param.grid.x);
-    let x0 = (x - 1 + w) % w;
-    let y0 = (y - 1 + h) % h;
-    let x1 = x;
-    let y1 = y;
-    let x2 = (x + 1) % w;
-    let y2 = (y + 1) % h;
-    return (cellStateIn[cellIndex(x0, y0)].a * 0.05 + cellStateIn[cellIndex(x1, y0)].a * 0.2 + cellStateIn[cellIndex(x2, y0)].a * 0.05 +
-            cellStateIn[cellIndex(x0, y1)].a * 0.2  + cellStateIn[cellIndex(x1, y1)].a * -1  + cellStateIn[cellIndex(x2, y1)].a * 0.2 +
-            cellStateIn[cellIndex(x0, y2)].a * 0.05 + cellStateIn[cellIndex(x1, y2)].a * 0.2 + cellStateIn[cellIndex(x2, y2)].a * 0.05);
-  }
-
-  fn laplaceB(x: u32, y: u32) -> f32 {
-    let h = u32(param.grid.y);
-    let w = u32(param.grid.x);
-    let x0 = (x - 1 + w) % w;
-    let y0 = (y - 1 + h) % h;
-    let x1 = x;
-    let y1 = y;
-    let x2 = (x + 1) % w;
-    let y2 = (y + 1) % h;
-    return (cellStateIn[cellIndex(x0, y0)].b * 0.05 + cellStateIn[cellIndex(x1, y0)].b * 0.2 + cellStateIn[cellIndex(x2, y0)].b * 0.05 +
-            cellStateIn[cellIndex(x0, y1)].b * 0.2  + cellStateIn[cellIndex(x1, y1)].b * -1  + cellStateIn[cellIndex(x2, y1)].b * 0.2 +
-            cellStateIn[cellIndex(x0, y2)].b * 0.05 + cellStateIn[cellIndex(x1, y2)].b * 0.2 + cellStateIn[cellIndex(x2, y2)].b * 0.05);
-  }
-
-  @compute
-  @workgroup_size(${WORKGROUP_SIZE}, ${WORKGROUP_SIZE})
-  fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
-    let dA = param.dA;
-    let dB = param.dB;
-    let feed = param.feed;
-    let kill = param.kill;
-
-    let i = cellIndex(cell.x, cell.y);
-    let a = cellStateIn[i].a;
-    let b = cellStateIn[i].b;
-    cellStateOut[i].a = a + (dA * laplaceA(cell.x, cell.y)) - (a * b * b) + feed * (1 - a);
-    cellStateOut[i].b = b + (dB * laplaceB(cell.x, cell.y)) + (a * b * b) - (kill + feed) * b;
-  }
-`
-
-const kCellShaderCode = `
-  struct VertexInput {
-    @location(0) pos: vec2f,
-    @builtin(instance_index) instance: u32,
-  };
-
-  struct VertexOutput {
-    @builtin(position) pos: vec4f,
-    @location(0) cell: vec2f,
-    @location(1) state: vec2f,
-  };
-
-  struct CellState {
-    a: f32,
-    b: f32,
-  };
-
-  struct Uniform {
-    grid: vec2f,
-    dA: f32,
-    dB: f32,
-    feed: f32,
-    k: f32,
-  };
-
-  @group(0) @binding(0) var<uniform> param: Uniform;
-  @group(0) @binding(1) var<storage> cellState: array<CellState>;
-
-  @vertex
-  fn vertexMain(input: VertexInput) -> VertexOutput {
-    let i = f32(input.instance);
-
-    let cell = vec2f(i % param.grid.x, floor(i / param.grid.x));
-    let state = cellState[input.instance];
-
-    let cellOffset = cell / param.grid * 2;
-    let gridPos = (input.pos + 1) / param.grid - 1 + cellOffset;
-
-    var output: VertexOutput;
-    output.pos = vec4f(gridPos, 0, 1);
-    output.cell = cell;
-    output.state = vec2f(state.a, state.b);
-    return output;
-  }
-
-  struct FragInput {
-    @location(0) cell: vec2f,
-    @location(1) state: vec2f,
-  };
-
-  @fragment
-  fn fragmentMain(input: FragInput) -> @location(0) vec4f {
-    let a = min(input.state.y * 3.0, 1.0);
-    // let c = input.cell / param.grid;
-    // return vec4f(c, 1 - c.x, a);
-    return vec4f(0x78/255.0, 0x45/255.0, 0x2a/255.0, a);
-  }
-`
-
 class WgslFramework {
   async setUpWgsl() {
     if (!navigator.gpu) {
@@ -159,10 +35,24 @@ function irandom(min, max) {
   return Math.floor(frandom(min, max))
 }
 
+async function fetchTextFile(path) {
+  const response = await fetch(path)
+  const text = await response.text()
+  return text
+}
+
 class MyApp extends WgslFramework {
   page = 0
   erasePos = []
   drawing = false
+
+  async loadShaderCode() {
+    const shaderCodes = await Promise.all([
+      fetchTextFile('reaction_diffusion_compute.wgsl'),
+      fetchTextFile('reaction_diffusion_render.wgsl'),
+    ])
+    this.shaderCodes = shaderCodes
+  }
 
   setUpComputeData() {
     const BUFFER_SIZE = GRID_SIZE * GRID_SIZE * 2 * 4
@@ -188,7 +78,7 @@ class MyApp extends WgslFramework {
 
     const simulationShaderModule = this.device.createShaderModule({
       label: 'Game of Life simulation shader',
-      code: kSimulationShaderCode,
+      code: this.shaderCodes[0],
     })
 
     this.cellStateStorage = cellStateStorage
@@ -249,7 +139,7 @@ class MyApp extends WgslFramework {
 
     const cellShaderModule = this.device.createShaderModule({
       label: 'Cell shader',
-      code: kCellShaderCode,
+      code: this.shaderCodes[1],
     })
 
     // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.055, 0.062])
@@ -261,7 +151,7 @@ class MyApp extends WgslFramework {
 
     // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4, 0.1*4, 0.082, 0.060])  // なにか
     // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4.5, 0.1*4.5, 0.092, 0.057])
-    const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.9, 0.5, 0.088, 0.057])
+    const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.92, 0.5, 0.088, 0.057])
 
     const uniformBuffer = this.device.createBuffer({
       label: 'Uniform parameter',
@@ -482,6 +372,7 @@ class MyApp extends WgslFramework {
 
 async function main() {
   const myapp = new MyApp()
+  await myapp.loadShaderCode()
   await myapp.setUpWgsl()
 
   myapp.setUpComputeData()
