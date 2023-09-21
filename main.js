@@ -118,9 +118,10 @@ const kCellShaderCode = `
 
   @fragment
   fn fragmentMain(input: FragInput) -> @location(0) vec4f {
-    let c = input.cell / param.grid;
     let a = min(input.state.y * 3.0, 1.0);
-    return vec4f(c, 1 - c.x, a);
+    // let c = input.cell / param.grid;
+    // return vec4f(c, 1 - c.x, a);
+    return vec4f(0x78/255.0, 0x45/255.0, 0x2a/255.0, a);
   }
 `
 
@@ -203,7 +204,7 @@ class MyApp extends WgslFramework {
       cellStateArray[i + 0] = 1.0
       cellStateArray[i + 1] = 0.0
     }
-    const n = Math.floor(irandom(1, 16))
+    const n = Math.floor(irandom(1, 32))
     for (let k = 0; k < n; ++k) {
       const size = Math.floor(irandom(2, 5))
       const x = Math.floor(irandom(size, GRID_SIZE - size))
@@ -211,7 +212,7 @@ class MyApp extends WgslFramework {
       for (let i = -size; i <= size; ++i) {
         for (let j = -size; j <= size; ++j) {
           const p = (((y + i) * GRID_SIZE) + (x + j)) * 2
-          cellStateArray[p + 0] = 0.0
+          cellStateArray[p + 0] = 0.5
           cellStateArray[p + 1] = 0.5
         }
       }
@@ -251,12 +252,16 @@ class MyApp extends WgslFramework {
       code: kCellShaderCode,
     })
 
-    const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.055, 0.062])
-    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.026, 0.061])
-    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.057])
+    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.055, 0.062])
+    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.026, 0.061])  // 点々
+    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.057])  // あみあみ
     // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.065])  // バクテリア
     // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.060, 0.062])  // Coral pattern
     // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.9, 0.61, 0.023, 0.052])  // 動き続ける
+
+    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4, 0.1*4, 0.082, 0.060])  // なにか
+    // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4.5, 0.1*4.5, 0.092, 0.057])
+    const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.9, 0.5, 0.088, 0.057])
 
     const uniformBuffer = this.device.createBuffer({
       label: 'Uniform parameter',
@@ -398,7 +403,8 @@ class MyApp extends WgslFramework {
       colorAttachments: [{
         view: this.context.getCurrentTexture().createView(),
         loadOp: 'clear',
-        clearValue: { r: 0, g: 0, b: 0.2, a: 1.0 },
+        // clearValue: { r: 0, g: 0, b: 0.2, a: 1.0 },
+        clearValue: { r: 0xe1/255.0, g: 0xdd/255.0, b: 0xd3/255.0, a: 1.0 },
         storeOp: 'store',
       }]
     })
@@ -451,7 +457,7 @@ class MyApp extends WgslFramework {
         const cx = this.erasePos[i]
         const cy = this.erasePos[i + 1]
 
-        const radius = (GRID_SIZE / 16) | 0, radius2 = radius * radius
+        const radius = (GRID_SIZE / 32) | 0, radius2 = radius * radius
         const x = cx | 0, y = cy | 0
         const dx0 = Math.max(-radius, -x), dy0 = Math.max(-radius, -y)
         const dx1 = Math.min(radius, width - 1 - x), dy1 = Math.min(radius, height - 1 - y)
@@ -459,7 +465,7 @@ class MyApp extends WgslFramework {
           for (let dx = dx0; dx <= dx1; ++dx) {
             if (dx * dx + dy * dy >= radius2)
               continue
-            cellStateArray[((y + dy) * GRID_SIZE + (x + dx)) * 2 + 1] = 0  // b = 0
+            cellStateArray[((y + dy) * GRID_SIZE + (x + dx)) * 2 + 1] = 0.1  // b = 0
           }
         }
       }
