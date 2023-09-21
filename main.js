@@ -355,7 +355,9 @@ class MyApp extends WgslFramework {
                     for (let dx = dx0; dx <= dx1; ++dx) {
                         if (dx * dx + dy * dy >= radius2)
                             continue
-                        cellStateArray[((y + dy) * GRID_SIZE + (x + dx)) * 2 + 1] = 0.05  // b = 0
+                        const i = ((y + dy) * GRID_SIZE + (x + dx)) * 2
+                        cellStateArray[i + 0] = 1.0  // a
+                        cellStateArray[i + 1] = 0.0  // b
                     }
                 }
             }
