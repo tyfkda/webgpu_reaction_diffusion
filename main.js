@@ -1,3 +1,5 @@
+import * as glMatrix from 'https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/+esm'
+
 const WORKGROUP_SIZE = 8
 const GRID_SIZE = 256
 
@@ -22,6 +24,7 @@ class WgslFramework {
         })
 
         this.device = device
+        this.canvas = canvas
         this.context = context
         this.canvasFormat = canvasFormat
     }
@@ -114,12 +117,63 @@ class MyApp extends WgslFramework {
     }
 
     setUpRenderingData() {
+        // const vertices = new Float32Array([
+        //     -1.0, -1.0,  0.0, 0.0,
+        //     1.0, -1.0,   1.0, 0.0,
+        //     -1.0, 1.0,   0.0, 1.0,
+        //     1.0, 1.0,    1.0, 1.0,
+        // ])
         const vertices = new Float32Array([
-            -1.0, -1.0,  0.0, 0.0,
-            1.0, -1.0,   1.0, 0.0,
-            -1.0, 1.0,   0.0, 1.0,
-            1.0, 1.0,    1.0, 1.0,
-        ])
+            // float4 position, float4 UV
+
+            // X-
+            -1,  1,  1, 1,  0, 0,
+            -1,  1, -1, 1,  1, 0,
+            -1, -1,  1, 1,  0, 1,
+            -1, -1, -1, 1,  1, 1,
+            -1, -1,  1, 1,  0, 1,
+            -1,  1, -1, 1,  1, 0,
+
+            // Z-
+            -1,  1, -1, 1,  0, 0,
+             1,  1, -1, 1,  1, 0,
+            -1, -1, -1, 1,  0, 1,
+             1, -1, -1, 1,  1, 1,
+            -1, -1, -1, 1,  0, 1,
+             1,  1, -1, 1,  1, 0,
+
+            // X+
+             1,  1, -1, 1,   0, 0,
+             1,  1,  1, 1,   1, 0,
+             1, -1, -1, 1,   0, 1,
+             1, -1,  1, 1,   1, 1,
+             1, -1, -1, 1,   0, 1,
+             1,  1,  1, 1,   1, 0,
+
+            // Z+
+             1,  1,  1, 1,   0, 0,
+            -1,  1,  1, 1,   1, 0,
+             1, -1,  1, 1,   0, 1,
+            -1, -1,  1, 1,   1, 1,
+             1, -1,  1, 1,   0, 1,
+            -1,  1,  1, 1,   1, 0,
+
+            // Y-
+            -1, -1, -1, 1,  0, 0,
+             1, -1, -1, 1,  1, 0,
+            -1, -1,  1, 1,  0, 1,
+             1, -1,  1, 1,  1, 1,
+            -1, -1,  1, 1,  0, 1,
+             1, -1, -1, 1,  1, 0,
+
+            // Y+
+            -1,  1,  1, 1,   0, 0,
+             1,  1,  1, 1,   1, 0,
+            -1,  1, -1, 1,   0, 1,
+             1,  1, -1, 1,   1, 1,
+            -1,  1, -1, 1,   0, 1,
+             1,  1,  1, 1,   1, 0,
+       ])
 
         const vertexBuffer = this.device.createBuffer({
             label: 'Cell vertices',
@@ -129,16 +183,16 @@ class MyApp extends WgslFramework {
         this.device.queue.writeBuffer(vertexBuffer, 0, vertices)
 
         const vertexBufferLayout = {
-            arrayStride: 4 * 4,
+            arrayStride: 6 * 4,
             attributes: [
                 {  // Pos
-                    format: 'float32x2',
+                    format: 'float32x4',
                     offset: 0,
                     shaderLocation: 0,
                 },
                 {  // UV
                     format: 'float32x2',
-                    offset: 4 * 2,
+                    offset: 4 * 4,
                     shaderLocation: 1,
                 },
             ],
@@ -151,34 +205,50 @@ class MyApp extends WgslFramework {
 
         this.texture = this.device.createTexture({
             label: 'Cell texture',
-            size: [GRID_SIZE, GRID_SIZE, 1],
+            size: [GRID_SIZE, GRID_SIZE],
             format: 'rgba32float',
             usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-        });
+        })
 
-        const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.055, 0.062])
-        // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.026, 0.061])  // 点々
-        // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.057])  // あみあみ
-        // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.065])  // バクテリア
-        // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.060, 0.062])  // Coral pattern
-        // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.9, 0.61, 0.023, 0.052])  // 動き続ける
+        this.depthTexture = this.device.createTexture({
+            size: [this.canvas.width, this.canvas.height],
+            format: 'depth24plus',
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+        })
 
-        // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4, 0.1*4, 0.082, 0.060])  // なにか
-        // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4.5, 0.1*4.5, 0.092, 0.057])
-        // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.92, 0.5, 0.088, 0.057])
+        const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.055, 0.062])
+        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.026, 0.061])  // 点々
+        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.057])  // あみあみ
+        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.065])  // バクテリア
+        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.060, 0.062])  // Coral pattern
+        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 0.9, 0.61, 0.023, 0.052])  // 動き続ける
+
+        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4, 0.1*4, 0.082, 0.060])  // なにか
+        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4.5, 0.1*4.5, 0.092, 0.057])
+        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 0.92, 0.5, 0.088, 0.057])
 
         const simulationUniformBuffer = this.device.createBuffer({
             label: 'Uniform parameter',
-            size: uniformArray.byteLength,
+            size: simulationUniform.byteLength,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         })
-        this.device.queue.writeBuffer(simulationUniformBuffer, 0, uniformArray)
+        this.device.queue.writeBuffer(simulationUniformBuffer, 0, simulationUniform)
+
+        const cellUniform = new Float32Array(4 * 4 * 4 * 3)  // f32 4x4 matrix x 3 (projection, view, world)
+        const cellUniformBuffer = this.device.createBuffer({
+            label: 'Uniform parameter',
+            size: cellUniform.byteLength,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        })
+        this.device.queue.writeBuffer(cellUniformBuffer, 0, cellUniform)
 
         this.vertices = vertices
         this.vertexBuffer = vertexBuffer
         this.vertexBufferLayout = vertexBufferLayout
         this.cellShaderModule = cellShaderModule
         this.simulationUniformBuffer = simulationUniformBuffer
+        this.cellUniform = cellUniform
+        this.cellUniformBuffer = cellUniformBuffer
     }
 
     setUpSimulationPipelineData() {
@@ -247,18 +317,18 @@ class MyApp extends WgslFramework {
         const cellBindGroupLayout = this.device.createBindGroupLayout({
             label: 'Cell Bind Group Layout',
             entries: [
-                // {
-                //     binding: 0,
-                //     visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-                //     buffer: { type: 'uniform' },
-                // },
                 {
                     binding: 0,
+                    visibility: GPUShaderStage.VERTEX,
+                    buffer: { type: 'uniform' },
+                },
+                {
+                    binding: 1,
                     visibility: GPUShaderStage.FRAGMENT,
                     sampler: { type: 'non-filtering' },
                 },
                 {
-                    binding: 1,
+                    binding: 2,
                     visibility: GPUShaderStage.FRAGMENT,
                     texture: { sampleType: 'unfilterable-float' },
                 },
@@ -290,7 +360,13 @@ class MyApp extends WgslFramework {
                 }],
             },
             primitive: {
-                topology: 'triangle-strip',
+                topology: 'triangle-list',
+                cullMode: 'back',
+            },
+            depthStencil: {
+                depthWriteEnabled: true,
+                depthCompare: 'less',
+                format: 'depth24plus',
             },
         })
 
@@ -298,16 +374,16 @@ class MyApp extends WgslFramework {
             label: 'Cell renderer bind group',
             layout: cellBindGroupLayout,
             entries: [
-                // {
-                //     binding: 0,
-                //     resource: { buffer: this.uniformBuffer },
-                // },
                 {
                     binding: 0,
-                    resource: sampler,
+                    resource: { buffer: this.cellUniformBuffer },
                 },
                 {
                     binding: 1,
+                    resource: sampler,
+                },
+                {
+                    binding: 2,
                     resource: this.texture.createView(),
                 },
             ],
@@ -321,6 +397,8 @@ class MyApp extends WgslFramework {
         if (this.drawing)
             return
         this.drawing = true
+
+        this.getTransformationMatrix(this.cellUniformBuffer)
 
         const encoder = this.device.createCommandEncoder()
 
@@ -345,7 +423,7 @@ class MyApp extends WgslFramework {
                 width: GRID_SIZE,
                 height: GRID_SIZE,
                 depthOrArrayLayers: 1,
-            }
+            },
         )
 
         const pass = encoder.beginRenderPass({
@@ -355,13 +433,19 @@ class MyApp extends WgslFramework {
                 clearValue: { r: 0, g: 0, b: 0.2, a: 1.0 },
                 // clearValue: { r: 0xe1/255.0, g: 0xdd/255.0, b: 0xd3/255.0, a: 1.0 },
                 storeOp: 'store',
-            }]
+            }],
+            depthStencilAttachment: {
+                view: this.depthTexture.createView(),
+                depthClearValue: 1.0,
+                depthLoadOp: 'clear',
+                depthStoreOp: 'store',
+            },
         })
 
         pass.setPipeline(this.cellPipeline)
         pass.setBindGroup(0, this.cellBindGroup)
         pass.setVertexBuffer(0, this.vertexBuffer)
-        pass.draw(this.vertices.length / 4)
+        pass.draw(this.vertices.length / 6)
         pass.end()
 
         if (this.erasePos.length > 0) {
@@ -384,6 +468,32 @@ class MyApp extends WgslFramework {
                 .then(() => this.drawing = false)
         }
     }
+
+    getTransformationMatrix(uniformBuffer) {
+        const fovy = (2 * Math.PI) / 6
+        const aspect = this.canvas.width / this.canvas.height
+        const projectionMatrix = glMatrix.mat4.create()
+        glMatrix.mat4.perspective(projectionMatrix, fovy, aspect, 1, 100.0)
+        this.device.queue.writeBuffer(
+            uniformBuffer, 4 * 16 * 0,
+            projectionMatrix.buffer, projectionMatrix.byteOffset, projectionMatrix.byteLength)
+
+        const viewMatrix = glMatrix.mat4.create()
+        glMatrix.mat4.translate(viewMatrix, viewMatrix, glMatrix.vec3.fromValues(0, 0, -4))
+        this.device.queue.writeBuffer(
+            uniformBuffer, 4 * 16 * 1,
+            viewMatrix.buffer, viewMatrix.byteOffset, viewMatrix.byteLength)
+
+        const worldMatrix = glMatrix.mat4.create()
+        const now = Date.now() / 1000
+        glMatrix.mat4.rotate(
+            worldMatrix, worldMatrix, 1,
+            glMatrix.vec3.fromValues(Math.sin(now), Math.cos(now), 0))
+        this.device.queue.writeBuffer(
+            uniformBuffer, 4 * 16 * 2,
+            worldMatrix.buffer, worldMatrix.byteOffset, worldMatrix.byteLength)
+      }
+
 
     async runErase() {
         const BUFFER_SIZE = this.stagingBuffer.size

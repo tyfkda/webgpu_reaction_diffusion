@@ -1,5 +1,5 @@
 struct VertexInput {
-    @location(0) pos: vec2f,
+    @location(0) pos: vec4f,
     @location(1) uv: vec2f,
 };
 
@@ -8,13 +8,20 @@ struct VertexOutput {
     @location(0) uv: vec2f,
 };
 
-@group(0) @binding(0) var cellSampler: sampler;
-@group(0) @binding(1) var cellTexture: texture_2d<f32>;
+struct Uniform {
+  projectionMatrix : mat4x4<f32>,
+  viewMatrix : mat4x4<f32>,
+  worldMatrix : mat4x4<f32>,
+}
+
+@group(0) @binding(0) var<uniform> param: Uniform;
+@group(0) @binding(1) var cellSampler: sampler;
+@group(0) @binding(2) var cellTexture: texture_2d<f32>;
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
-    output.pos = vec4f(input.pos, 0, 1);
+	output.pos = param.projectionMatrix * param.viewMatrix * param.worldMatrix * input.pos;
     output.uv = input.uv;
     return output;
 }
