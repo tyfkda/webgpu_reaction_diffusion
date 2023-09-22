@@ -115,10 +115,10 @@ class MyApp extends WgslFramework {
 
     setUpRenderingData() {
         const vertices = new Float32Array([
-            -1.0, -1.0,
-            1.0, -1.0,
-            -1.0, 1.0,
-            1.0, 1.0,
+            -1.0, -1.0,  0.0, 0.0,
+            1.0, -1.0,   1.0, 0.0,
+            -1.0, 1.0,   0.0, 1.0,
+            1.0, 1.0,    1.0, 1.0,
         ])
 
         const vertexBuffer = this.device.createBuffer({
@@ -129,12 +129,17 @@ class MyApp extends WgslFramework {
         this.device.queue.writeBuffer(vertexBuffer, 0, vertices)
 
         const vertexBufferLayout = {
-            arrayStride: 8,
+            arrayStride: 4 * 4,
             attributes: [
-                {
+                {  // Pos
                     format: 'float32x2',
                     offset: 0,
                     shaderLocation: 0,
+                },
+                {  // UV
+                    format: 'float32x2',
+                    offset: 4 * 2,
+                    shaderLocation: 1,
                 },
             ],
         }
@@ -145,9 +150,10 @@ class MyApp extends WgslFramework {
         })
 
         this.texture = this.device.createTexture({
+            label: 'Cell texture',
             size: [GRID_SIZE, GRID_SIZE, 1],
             format: 'rgba32float',
-            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
         });
 
         const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.055, 0.062])
@@ -161,50 +167,40 @@ class MyApp extends WgslFramework {
         // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4.5, 0.1*4.5, 0.092, 0.057])
         // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 0.92, 0.5, 0.088, 0.057])
 
-        const uniformBuffer = this.device.createBuffer({
+        const simulationUniformBuffer = this.device.createBuffer({
             label: 'Uniform parameter',
             size: uniformArray.byteLength,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         })
-        this.device.queue.writeBuffer(uniformBuffer, 0, uniformArray)
+        this.device.queue.writeBuffer(simulationUniformBuffer, 0, uniformArray)
 
         this.vertices = vertices
         this.vertexBuffer = vertexBuffer
         this.vertexBufferLayout = vertexBufferLayout
         this.cellShaderModule = cellShaderModule
-        this.uniformBuffer = uniformBuffer
+        this.simulationUniformBuffer = simulationUniformBuffer
     }
 
     setUpSimulationPipelineData() {
-        const simulationBindGroupLayout = this.device.createBindGroupLayout({
-            label: 'Cell Bind Group Layout',
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-                    buffer: { type: 'uniform' },
-                },
-                {
-                    binding: 1,
-                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-                    buffer: { type: 'read-only-storage' },
-                },
-                {
-                    binding: 2,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: 'storage' },
-                },
-            ],
+        const simulationPipeline = this.device.createComputePipeline({
+            label: 'Simulation pipeline',
+            layout: 'auto',
+            compute: {
+                module: this.simulationShaderModule,
+                entryPoint: 'computeMain',
+            },
         })
+
+        const simulationBindGroupLayout = simulationPipeline.getBindGroupLayout(0)
 
         const simulationBindGroups = [
             this.device.createBindGroup({
-                label: 'Cell renderer bind group A',
+                label: 'Simulation bind group A',
                 layout: simulationBindGroupLayout,
                 entries: [
                     {
                         binding: 0,
-                        resource: { buffer: this.uniformBuffer },
+                        resource: { buffer: this.simulationUniformBuffer },
                     },
                     {
                         binding: 1,
@@ -217,12 +213,12 @@ class MyApp extends WgslFramework {
                 ],
             }),
             this.device.createBindGroup({
-                label: 'Cell renderer bind group B',
+                label: 'Simulation bind group B',
                 layout: simulationBindGroupLayout,
                 entries: [
                     {
                         binding: 0,
-                        resource: { buffer: this.uniformBuffer },
+                        resource: { buffer: this.simulationUniformBuffer },
                     },
                     {
                         binding: 1,
@@ -236,66 +232,35 @@ class MyApp extends WgslFramework {
             }),
         ]
 
-        const simulationPipelineLayout = this.device.createPipelineLayout({
-            label: 'Cell Pipeline Layout',
-            bindGroupLayouts: [simulationBindGroupLayout],
-        })
-
-        const simulationPipeline = this.device.createComputePipeline({
-            label: 'Simulation pipeline',
-            layout: simulationPipelineLayout,
-            compute: {
-                module: this.simulationShaderModule,
-                entryPoint: 'computeMain',
-            },
-        })
-
         this.simulationPipeline = simulationPipeline
         this.simulationBindGroups = simulationBindGroups
     }
 
     setUpCellPipelineData() {
         const sampler = this.device.createSampler({
-            magFilter: 'linear',
-            minFilter: 'linear',
+            addressModeU: 'repeat',
+            addressModeV: 'repeat',
+            // magFilter: 'linear',
+            // minFilter: 'linear',
         })
 
         const cellBindGroupLayout = this.device.createBindGroupLayout({
             label: 'Cell Bind Group Layout',
             entries: [
+                // {
+                //     binding: 0,
+                //     visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+                //     buffer: { type: 'uniform' },
+                // },
                 {
                     binding: 0,
-                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-                    buffer: { type: 'uniform' },
+                    visibility: GPUShaderStage.FRAGMENT,
+                    sampler: { type: 'non-filtering' },
                 },
                 {
                     binding: 1,
-                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-                    buffer: { type: 'read-only-storage' },
-                },
-                {
-                    binding: 2,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: 'storage' },
-                },
-            ],
-        })
-
-        const cellBindGroup = this.device.createBindGroup({
-            label: 'Cell renderer bind group A',
-            layout: cellBindGroupLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: { buffer: this.uniformBuffer },
-                },
-                {
-                    binding: 1,
-                    resource: { buffer: this.cellStateStorage[0] },
-                },
-                {
-                    binding: 2,
-                    resource: { buffer: this.cellStateStorage[1] },
+                    visibility: GPUShaderStage.FRAGMENT,
+                    texture: { sampleType: 'unfilterable-float' },
                 },
             ],
         })
@@ -327,6 +292,25 @@ class MyApp extends WgslFramework {
             primitive: {
                 topology: 'triangle-strip',
             },
+        })
+
+        const cellBindGroup = this.device.createBindGroup({
+            label: 'Cell renderer bind group',
+            layout: cellBindGroupLayout,
+            entries: [
+                // {
+                //     binding: 0,
+                //     resource: { buffer: this.uniformBuffer },
+                // },
+                {
+                    binding: 0,
+                    resource: sampler,
+                },
+                {
+                    binding: 1,
+                    resource: this.texture.createView(),
+                },
+            ],
         })
 
         this.cellPipeline = cellPipeline
@@ -377,7 +361,7 @@ class MyApp extends WgslFramework {
         pass.setPipeline(this.cellPipeline)
         pass.setBindGroup(0, this.cellBindGroup)
         pass.setVertexBuffer(0, this.vertexBuffer)
-        pass.draw(this.vertices.length / 2, GRID_SIZE * GRID_SIZE)
+        pass.draw(this.vertices.length / 4)
         pass.end()
 
         if (this.erasePos.length > 0) {
