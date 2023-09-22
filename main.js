@@ -554,8 +554,11 @@ async function main() {
     myapp.setUpSimulationPipelineData()
     myapp.setUpCellPipelineData()
 
-    const UPDATE_INTERVAL = 20
-    setInterval(myapp.draw.bind(myapp), UPDATE_INTERVAL)
+    const interval = () => {
+        myapp.draw()
+        requestAnimationFrame(interval)
+    }
+    requestAnimationFrame(interval)
 
     document.getElementById('reset-btn').addEventListener('click', () => {
         myapp.randomizeCellState()
