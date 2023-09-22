@@ -1,4 +1,5 @@
-import * as glMatrix from 'https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/+esm'
+import {mat4} from 'https://wgpu-matrix.org/dist/2.x/wgpu-matrix.module.js'
+const eulerZXY = (rx, ry, rz) => mat4.rotateY(mat4.rotateX(mat4.rotateZ(mat4.identity(), rz), rx), ry)
 
 const WORKGROUP_SIZE = 8
 const GRID_SIZE = 256
@@ -470,25 +471,29 @@ class MyApp extends WgslFramework {
     }
 
     getTransformationMatrix(uniformBuffer) {
-        const fovy = (2 * Math.PI) / 6
+        const fovy = 45 * Math.PI / 180
         const aspect = this.canvas.width / this.canvas.height
-        const projectionMatrix = glMatrix.mat4.create()
-        glMatrix.mat4.perspective(projectionMatrix, fovy, aspect, 1, 100.0)
+        const near = 0.1
+        const far = 1000
+        const projectionMatrix = mat4.perspective(fovy, aspect, near, far)
         this.device.queue.writeBuffer(
             uniformBuffer, 4 * 16 * 0,
             projectionMatrix.buffer, projectionMatrix.byteOffset, projectionMatrix.byteLength)
 
-        const viewMatrix = glMatrix.mat4.create()
-        glMatrix.mat4.translate(viewMatrix, viewMatrix, glMatrix.vec3.fromValues(0, 0, -4))
+        const eye = [0, 0, -5]
+        const target = [0, 0, 0]
+        const up = [0, 1, 0]
+        const viewMatrix = mat4.lookAt(eye, target, up)
         this.device.queue.writeBuffer(
             uniformBuffer, 4 * 16 * 1,
             viewMatrix.buffer, viewMatrix.byteOffset, viewMatrix.byteLength)
 
-        const worldMatrix = glMatrix.mat4.create()
-        const now = Date.now() / 1000
-        glMatrix.mat4.rotate(
-            worldMatrix, worldMatrix, 1,
-            glMatrix.vec3.fromValues(Math.sin(now), Math.cos(now), 0))
+        const t = Date.now() / 6000
+        const rx = t * 2
+        const ry = t * 3
+        const rz = t * 5
+
+        const worldMatrix = eulerZXY(rx, ry, rz)
         this.device.queue.writeBuffer(
             uniformBuffer, 4 * 16 * 2,
             worldMatrix.buffer, worldMatrix.byteOffset, worldMatrix.byteLength)
