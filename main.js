@@ -1,4 +1,6 @@
+import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/+esm'
 import {mat4} from 'https://wgpu-matrix.org/dist/2.x/wgpu-matrix.module.js'
+
 const eulerZXY = (rx, ry, rz) => mat4.rotateY(mat4.rotateX(mat4.rotateZ(mat4.identity(), rz), rx), ry)
 
 const WORKGROUP_SIZE = 8
@@ -560,10 +562,6 @@ async function main() {
     }
     requestAnimationFrame(interval)
 
-    document.getElementById('reset-btn').addEventListener('click', () => {
-        myapp.randomizeCellState()
-    })
-
     const canvas = document.querySelector('canvas')
     canvas.addEventListener('mousedown', (event) => {
         const clientRect = canvas.getBoundingClientRect()
@@ -587,6 +585,15 @@ async function main() {
         document.addEventListener('mousemove', mousemove)
         document.addEventListener('mouseup', mouseup)
     })
+
+    Alpine.data('initialData', () => ({
+        reset() {
+            myapp.randomizeCellState()
+        },
+    }))
 }
 
 await main()
+
+window.Alpine = Alpine
+Alpine.start()

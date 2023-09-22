@@ -5,12 +5,14 @@
     <title>WebGPU Life</title>
   </head>
   <body>
-    <div>
-      <canvas width="512" height="512"></canvas>
+    <div x-data="initialData">
+      <div>
+        <canvas width="512" height="512"></canvas>
+      </div>
+      <div>
+        <button @click="reset()">Reset</button>
+      </div>
     </div>
-    <div>
-      <button id="reset-btn">Reset</button>
-    </div>
-    <script src="main.js" type="module" defer></script>
+    <script src="main.js" type="module"></script>
   </body>
 </html>
