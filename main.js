@@ -175,7 +175,7 @@ class MyApp extends WgslFramework {
         this.uniformBuffer = uniformBuffer
     }
 
-    setUpPipelineData() {
+    setUpSimulationPipelineData() {
         const simulationBindGroupLayout = this.device.createBindGroupLayout({
             label: 'Cell Bind Group Layout',
             entries: [
@@ -250,9 +250,64 @@ class MyApp extends WgslFramework {
             },
         })
 
+        this.simulationPipeline = simulationPipeline
+        this.simulationBindGroups = simulationBindGroups
+    }
+
+    setUpCellPipelineData() {
+        const sampler = this.device.createSampler({
+            magFilter: 'linear',
+            minFilter: 'linear',
+        })
+
+        const cellBindGroupLayout = this.device.createBindGroupLayout({
+            label: 'Cell Bind Group Layout',
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
+                    buffer: { type: 'uniform' },
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
+                    buffer: { type: 'read-only-storage' },
+                },
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: 'storage' },
+                },
+            ],
+        })
+
+        const cellBindGroup = this.device.createBindGroup({
+            label: 'Cell renderer bind group A',
+            layout: cellBindGroupLayout,
+            entries: [
+                {
+                    binding: 0,
+                    resource: { buffer: this.uniformBuffer },
+                },
+                {
+                    binding: 1,
+                    resource: { buffer: this.cellStateStorage[0] },
+                },
+                {
+                    binding: 2,
+                    resource: { buffer: this.cellStateStorage[1] },
+                },
+            ],
+        })
+
+        const cellPipelineLayout = this.device.createPipelineLayout({
+            label: 'Cell Pipeline Layout',
+            bindGroupLayouts: [cellBindGroupLayout],
+        })
+
         const cellPipeline = this.device.createRenderPipeline({
             label: 'Cell pipeline',
-            layout: simulationPipelineLayout,
+            layout: cellPipelineLayout,
             vertex: {
                 module: this.cellShaderModule,
                 entryPoint: 'vertexMain',
@@ -274,9 +329,8 @@ class MyApp extends WgslFramework {
             },
         })
 
-        this.simulationPipeline = simulationPipeline
         this.cellPipeline = cellPipeline
-        this.simulationBindGroups = simulationBindGroups
+        this.cellBindGroup = cellBindGroup
     }
 
     draw() {
@@ -321,7 +375,7 @@ class MyApp extends WgslFramework {
         })
 
         pass.setPipeline(this.cellPipeline)
-        pass.setBindGroup(0, this.simulationBindGroups[this.page])
+        pass.setBindGroup(0, this.cellBindGroup)
         pass.setVertexBuffer(0, this.vertexBuffer)
         pass.draw(this.vertices.length / 2, GRID_SIZE * GRID_SIZE)
         pass.end()
@@ -398,7 +452,8 @@ async function main() {
 
     myapp.setUpComputeData()
     myapp.setUpRenderingData()
-    myapp.setUpPipelineData()
+    myapp.setUpSimulationPipelineData()
+    myapp.setUpCellPipelineData()
 
     const UPDATE_INTERVAL = 20
     setInterval(myapp.draw.bind(myapp), UPDATE_INTERVAL)
