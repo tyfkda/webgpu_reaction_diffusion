@@ -322,49 +322,47 @@ class MyApp extends WgslFramework {
             this.drawing = false
         } else {
             this.runErase()
-                .then(() => {
-                    this.drawing = false
-                })
+                .then(() => this.drawing = false)
         }
     }
 
     async runErase() {
         const BUFFER_SIZE = this.stagingBuffer.size
-        this.stagingBuffer.mapAsync(
+        await this.stagingBuffer.mapAsync(
             GPUMapMode.READ,
             0, // Offset
             BUFFER_SIZE // Length
-        ).then(() => {
-            const copyArrayBuffer = this.stagingBuffer.getMappedRange(0, BUFFER_SIZE)
-            const data = copyArrayBuffer.slice()
-            this.stagingBuffer.unmap()
-            const cellStateArray = new Float32Array(data)
+        )
 
-            const width = GRID_SIZE
-            const height = GRID_SIZE
+        const copyArrayBuffer = this.stagingBuffer.getMappedRange(0, BUFFER_SIZE)
+        const data = copyArrayBuffer.slice()
+        this.stagingBuffer.unmap()
+        const cellStateArray = new Float32Array(data)
 
-            for (let i = 0; i < this.erasePos.length; i += 2) {
-                const cx = this.erasePos[i]
-                const cy = this.erasePos[i + 1]
+        const width = GRID_SIZE
+        const height = GRID_SIZE
 
-                const radius = (GRID_SIZE / 32) | 0, radius2 = radius * radius
-                const x = cx | 0, y = cy | 0
-                const dx0 = Math.max(-radius, -x), dy0 = Math.max(-radius, -y)
-                const dx1 = Math.min(radius, width - 1 - x), dy1 = Math.min(radius, height - 1 - y)
-                for (let dy = dy0; dy <= dy1; ++dy) {
-                    for (let dx = dx0; dx <= dx1; ++dx) {
-                        if (dx * dx + dy * dy >= radius2)
-                            continue
-                        const i = ((y + dy) * GRID_SIZE + (x + dx)) * 2
-                        cellStateArray[i + 0] = 1.0  // a
-                        cellStateArray[i + 1] = 0.0  // b
-                    }
+        for (let i = 0; i < this.erasePos.length; i += 2) {
+            const cx = this.erasePos[i]
+            const cy = this.erasePos[i + 1]
+
+            const radius = (GRID_SIZE / 32) | 0, radius2 = radius * radius
+            const x = cx | 0, y = cy | 0
+            const dx0 = Math.max(-radius, -x), dy0 = Math.max(-radius, -y)
+            const dx1 = Math.min(radius, width - 1 - x), dy1 = Math.min(radius, height - 1 - y)
+            for (let dy = dy0; dy <= dy1; ++dy) {
+                for (let dx = dx0; dx <= dx1; ++dx) {
+                    if (dx * dx + dy * dy >= radius2)
+                        continue
+                    const i = ((y + dy) * GRID_SIZE + (x + dx)) * 2
+                    cellStateArray[i + 0] = 1.0  // a
+                    cellStateArray[i + 1] = 0.0  // b
                 }
             }
-            this.erasePos.length = 0
+        }
+        this.erasePos.length = 0
 
-            this.device.queue.writeBuffer(this.cellStateStorage[this.page], 0, cellStateArray)
-        })
+        this.device.queue.writeBuffer(this.cellStateStorage[this.page], 0, cellStateArray)
     }
 
     async pushErase(cx, cy) {
