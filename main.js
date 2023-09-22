@@ -55,7 +55,7 @@ class MyApp extends WgslFramework {
     }
 
     setUpComputeData() {
-        const BUFFER_SIZE = GRID_SIZE * GRID_SIZE * 2 * 4
+        const BUFFER_SIZE = GRID_SIZE * GRID_SIZE * 4 * 4
 
         this.stagingBuffer = this.device.createBuffer({
             label: 'Staging buffer',
@@ -88,11 +88,13 @@ class MyApp extends WgslFramework {
     }
 
     randomizeCellState() {
-        const cellStateArray = new Float32Array(GRID_SIZE * GRID_SIZE * 2)
+        const cellStateArray = new Float32Array(GRID_SIZE * GRID_SIZE * 4)
 
-        for (let i = 0; i < cellStateArray.length; i += 2) {
+        for (let i = 0; i < cellStateArray.length; i += 4) {
             cellStateArray[i + 0] = 1.0
             cellStateArray[i + 1] = 0.0
+            cellStateArray[i + 2] = 0.0
+            cellStateArray[i + 3] = 1.0
         }
         const n = Math.floor(irandom(1, 32))
         for (let k = 0; k < n; ++k) {
@@ -101,7 +103,7 @@ class MyApp extends WgslFramework {
             const y = Math.floor(irandom(size, GRID_SIZE - size))
             for (let i = -size; i <= size; ++i) {
                 for (let j = -size; j <= size; ++j) {
-                    const p = (((y + i) * GRID_SIZE) + (x + j)) * 2
+                    const p = (((y + i) * GRID_SIZE) + (x + j)) * 4
                     cellStateArray[p + 0] = 0.5
                     cellStateArray[p + 1] = 0.5
                 }
@@ -354,7 +356,7 @@ class MyApp extends WgslFramework {
                 for (let dx = dx0; dx <= dx1; ++dx) {
                     if (dx * dx + dy * dy >= radius2)
                         continue
-                    const i = ((y + dy) * GRID_SIZE + (x + dx)) * 2
+                    const i = ((y + dy) * GRID_SIZE + (x + dx)) * 4
                     cellStateArray[i + 0] = 1.0  // a
                     cellStateArray[i + 1] = 0.0  // b
                 }

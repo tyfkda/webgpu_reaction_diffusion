@@ -12,6 +12,8 @@ struct VertexOutput {
 struct CellState {
     a: f32,
     b: f32,
+    _c: f32,
+    _d: f32,
 };
 
 struct Uniform {
