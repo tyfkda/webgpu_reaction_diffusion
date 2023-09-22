@@ -144,6 +144,12 @@ class MyApp extends WgslFramework {
             code: this.shaderCodes[1],
         })
 
+        this.texture = this.device.createTexture({
+            size: [GRID_SIZE, GRID_SIZE, 1],
+            format: 'rgba32float',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+
         const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.055, 0.062])
         // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.026, 0.061])  // 点々
         // const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.057])  // あみあみ
@@ -170,7 +176,7 @@ class MyApp extends WgslFramework {
     }
 
     setUpPipelineData() {
-        const bindGroupLayout = this.device.createBindGroupLayout({
+        const simulationBindGroupLayout = this.device.createBindGroupLayout({
             label: 'Cell Bind Group Layout',
             entries: [
                 {
@@ -191,10 +197,10 @@ class MyApp extends WgslFramework {
             ],
         })
 
-        const bindGroups = [
+        const simulationBindGroups = [
             this.device.createBindGroup({
                 label: 'Cell renderer bind group A',
-                layout: bindGroupLayout,
+                layout: simulationBindGroupLayout,
                 entries: [
                     {
                         binding: 0,
@@ -212,7 +218,7 @@ class MyApp extends WgslFramework {
             }),
             this.device.createBindGroup({
                 label: 'Cell renderer bind group B',
-                layout: bindGroupLayout,
+                layout: simulationBindGroupLayout,
                 entries: [
                     {
                         binding: 0,
@@ -230,14 +236,14 @@ class MyApp extends WgslFramework {
             }),
         ]
 
-        const pipelineLayout = this.device.createPipelineLayout({
+        const simulationPipelineLayout = this.device.createPipelineLayout({
             label: 'Cell Pipeline Layout',
-            bindGroupLayouts: [bindGroupLayout],
+            bindGroupLayouts: [simulationBindGroupLayout],
         })
 
         const simulationPipeline = this.device.createComputePipeline({
             label: 'Simulation pipeline',
-            layout: pipelineLayout,
+            layout: simulationPipelineLayout,
             compute: {
                 module: this.simulationShaderModule,
                 entryPoint: 'computeMain',
@@ -246,7 +252,7 @@ class MyApp extends WgslFramework {
 
         const cellPipeline = this.device.createRenderPipeline({
             label: 'Cell pipeline',
-            layout: pipelineLayout,
+            layout: simulationPipelineLayout,
             vertex: {
                 module: this.cellShaderModule,
                 entryPoint: 'vertexMain',
@@ -270,7 +276,7 @@ class MyApp extends WgslFramework {
 
         this.simulationPipeline = simulationPipeline
         this.cellPipeline = cellPipeline
-        this.bindGroups = bindGroups
+        this.simulationBindGroups = simulationBindGroups
     }
 
     draw() {
@@ -283,13 +289,26 @@ class MyApp extends WgslFramework {
         for (let i = 0; i < 8; ++i) {
             const computePass = encoder.beginComputePass()
             computePass.setPipeline(this.simulationPipeline)
-            computePass.setBindGroup(0, this.bindGroups[this.page])
+            computePass.setBindGroup(0, this.simulationBindGroups[this.page])
             const workgroupCount = Math.ceil(GRID_SIZE / WORKGROUP_SIZE)
             computePass.dispatchWorkgroups(workgroupCount, workgroupCount)
             computePass.end()
 
             this.page = 1 - this.page
         }
+
+        encoder.copyBufferToTexture(
+            {
+                buffer: this.cellStateStorage[this.page],
+                bytesPerRow: GRID_SIZE * 4 * 4,
+            },
+            {texture: this.texture},
+            {
+                width: GRID_SIZE,
+                height: GRID_SIZE,
+                depthOrArrayLayers: 1,
+            }
+        )
 
         const pass = encoder.beginRenderPass({
             colorAttachments: [{
@@ -302,7 +321,7 @@ class MyApp extends WgslFramework {
         })
 
         pass.setPipeline(this.cellPipeline)
-        pass.setBindGroup(0, this.bindGroups[this.page])
+        pass.setBindGroup(0, this.simulationBindGroups[this.page])
         pass.setVertexBuffer(0, this.vertexBuffer)
         pass.draw(this.vertices.length / 2, GRID_SIZE * GRID_SIZE)
         pass.end()
