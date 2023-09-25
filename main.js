@@ -52,6 +52,19 @@ class MyApp extends WgslFramework {
     erasePos = []
     drawing = false
 
+    async start() {
+        await this.loadShaderCode()
+        await this.setUpWgsl()
+
+        this.setUpComputeData()
+        this.setUpRenderingData()
+        this.setUpSimulationPipelineData()
+        this.setUpCellPipelineData()
+
+        this.setTouchEvents()
+        this.startAnimation()
+    }
+
     async loadShaderCode() {
         const shaderCodes = await Promise.all([
             fetchTextFile('reaction_diffusion_compute.wgsl'),
@@ -544,47 +557,45 @@ class MyApp extends WgslFramework {
     async pushErase(cx, cy) {
         this.erasePos.push(cx, cy)
     }
+
+    startAnimation() {
+        const interval = () => {
+            this.draw()
+            requestAnimationFrame(interval)
+        }
+        requestAnimationFrame(interval)
+    }
+
+    setTouchEvents() {
+        const canvas = this.canvas
+        canvas.addEventListener('mousedown', (event) => {
+            const clientRect = canvas.getBoundingClientRect()
+            const erase = (ev) => {
+                const cx = ev.clientX - clientRect.x
+                const cy = ev.clientY - clientRect.y
+                // console.log(`${cx}, ${cy}`)
+                if (0 <= cx && cx < canvas.width && 0 <= cy && cy < canvas.height) {
+                    this.pushErase(cx * GRID_SIZE / clientRect.width, (clientRect.height - 1 - cy) * GRID_SIZE / clientRect.height)
+                }
+            }
+            erase(event)
+
+            const mousemove = (event) => {
+                erase(event)
+            }
+            const mouseup = (_event) => {
+                document.removeEventListener('mousemove', mousemove)
+                document.removeEventListener('mouseup', mouseup)
+            }
+            document.addEventListener('mousemove', mousemove)
+            document.addEventListener('mouseup', mouseup)
+        })
+    }
 }
 
 async function main() {
     const myapp = new MyApp()
-    await myapp.loadShaderCode()
-    await myapp.setUpWgsl()
-
-    myapp.setUpComputeData()
-    myapp.setUpRenderingData()
-    myapp.setUpSimulationPipelineData()
-    myapp.setUpCellPipelineData()
-
-    const interval = () => {
-        myapp.draw()
-        requestAnimationFrame(interval)
-    }
-    requestAnimationFrame(interval)
-
-    const canvas = document.querySelector('canvas')
-    canvas.addEventListener('mousedown', (event) => {
-        const clientRect = canvas.getBoundingClientRect()
-        const erase = (ev) => {
-            const cx = ev.clientX - clientRect.x
-            const cy = ev.clientY - clientRect.y
-            // console.log(`${cx}, ${cy}`)
-            if (0 <= cx && cx < canvas.width && 0 <= cy && cy < canvas.height) {
-                myapp.pushErase(cx * GRID_SIZE / clientRect.width, (clientRect.height - 1 - cy) * GRID_SIZE / clientRect.height)
-            }
-        }
-        erase(event)
-
-        const mousemove = (event) => {
-            erase(event)
-        }
-        const mouseup = (_event) => {
-            document.removeEventListener('mousemove', mousemove)
-            document.removeEventListener('mouseup', mouseup)
-        }
-        document.addEventListener('mousemove', mousemove)
-        document.addEventListener('mouseup', mouseup)
-    })
+    await myapp.start()
 
     Alpine.data('initialData', () => ({
         reset() {
