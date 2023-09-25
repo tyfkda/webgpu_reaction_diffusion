@@ -9,6 +9,30 @@ const GRID_SIZE = 256
 const DRAW_2D = '2d'
 const DRAW_CUBE = 'cube'
 
+const PRESET_NONE = ''
+const PRESET_CORAL = 'coral'
+const PRESET_GIRAFFE = 'giraffe'
+const PRESET_SPOT = 'spot'
+const PRESET_MESH = 'mesh'
+const PRESET_BACTERIA = 'bacteria'
+const PRESET_URBAN_PLAN = 'urbanplan'
+const PRESET_LINE_LOOP = 'lineloop'
+const PRESET_MAZE = 'maze'
+const PRESET_BUCHI = 'buchi'
+
+const PresetParameterTable = {
+    coral: new Float32Array([1.0, 0.5, 0.055, 0.062]),  // 珊瑚
+    giraffe: new Float32Array([0.92, 0.5, 0.088, 0.057]),  // キリン
+    spot: new Float32Array([1.0, 0.5, 0.026, 0.061]),  // ヒョウ
+    mesh: new Float32Array([1.0, 0.5, 0.035, 0.057]),  // あみあみ
+    bacteria: new Float32Array([0.9, 0.61, 0.023, 0.052]),  // バクテリア
+
+    urbanplan: new Float32Array([0.80, 0.40, 0.082, 0.060]),  // 都市計画
+    lineloop: new Float32Array([0.96, 0.54, 0.060, 0.062]),  // 線と輪
+    maze: new Float32Array([1.16, 0.48, 0.062, 0.064]),  // 迷路
+    buchi: new Float32Array([0.96, 0.53, 0.066, 0.061]),  // ブチ
+}
+
 class WgslFramework {
     async setUpWgsl() {
         if (!navigator.gpu) {
@@ -285,6 +309,7 @@ class MyApp extends WgslFramework {
         this.vertexBufferLayout = vertexBufferLayout
         this.cellShader2DModule = cellShader2DModule
         this.cellShader3DModule = cellShader3DModule
+        this.simulationUniform = simulationUniform
         this.simulationUniformBuffer = simulationUniformBuffer
         this.cellUniform = cellUniform
         this.cellUniformBuffer = cellUniformBuffer
@@ -724,27 +749,76 @@ class MyApp extends WgslFramework {
     setDrawMethod(value) {
         this.drawMethod = value
     }
+
+    setParameter(index, value) {
+        this.preset = PRESET_NONE
+        this.simulationUniform[index + 2] = value
+        this.device.queue.writeBuffer(this.simulationUniformBuffer, 0, this.simulationUniform)
+    }
 }
 
 async function main() {
     const myapp = new MyApp()
     await myapp.start()
 
+    let settingPreset = false
+
     Alpine.data('initialData', () => ({
+        preset: PRESET_CORAL,
+        presetOptions: [
+            {value: PRESET_NONE, text: ''},
+            {value: PRESET_CORAL, text: '珊瑚'},
+            {value: PRESET_GIRAFFE, text: 'キリン'},
+            {value: PRESET_SPOT, text: 'チーター'},
+            {value: PRESET_MESH, text: '網目'},
+            {value: PRESET_BACTERIA, text: 'バクテリア'},
+
+            {value: PRESET_URBAN_PLAN, text: '都市計画'},
+            {value: PRESET_LINE_LOOP, text: '線と輪'},
+            {value: PRESET_MAZE, text: '迷路'},
+            {value: PRESET_BUCHI, text: 'ブチ'},
+        ],
         drawMethod: DRAW_2D,
         drawMethodOptions: [
             {value: DRAW_2D, text: '2D'},
             {value: DRAW_CUBE, text: '立方体'},
         ],
+        dA: 1.0,
+        dB: 0.5,
+        feed: 0.055,
+        kill: 0.062,
 
         init() {
-            this.$watch('drawMethod', value => {
-                myapp.setDrawMethod(value)
-            })
+            this.$watch('drawMethod', value => myapp.setDrawMethod(value))
+            this.$watch('preset', value => this.setPreset(value))
+            this.$watch('dA', value => this.setParameter(0, parseFloat(value)))
+            this.$watch('dB', value => this.setParameter(1, parseFloat(value)))
+            this.$watch('feed', value => this.setParameter(2, parseFloat(value)))
+            this.$watch('kill', value => this.setParameter(3, parseFloat(value)))
         },
 
         reset() {
             myapp.randomizeCellState()
+        },
+
+        setPreset(value) {
+            if (value === PRESET_NONE)
+                return
+
+            settingPreset = true
+            const table = PresetParameterTable[value]
+            myapp.setParameter(0, this.dA = table[0].toFixed(2))
+            myapp.setParameter(1, this.dB = table[1].toFixed(2))
+            myapp.setParameter(2, this.feed = table[2].toFixed(3))
+            myapp.setParameter(3, this.kill = table[3].toFixed(3))
+            settingPreset = false
+        },
+
+        setParameter(index, value) {
+            if (settingPreset)
+                return
+            myapp.setParameter(index, value)
+            this.preset = PRESET_NONE
         },
     }))
 }

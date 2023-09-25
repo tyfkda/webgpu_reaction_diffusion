@@ -11,12 +11,23 @@
       </div>
       <div>
         <button @click="reset()">Reset</button>
+        <select x-model="preset">
+          <template x-for="opt in presetOptions" :key="opt.value">
+            <option :value="opt.value" x-text="opt.text" :selected="preset==opt.value"></option>
+          </template>
+        </select>
         <select x-model="drawMethod">
           <template x-for="opt in drawMethodOptions" :key="opt.value">
             <option :value="opt.value" x-text="opt.text" :selected="drawMethod==opt.value"></option>
           </template>
         </select>
       </div>
+      <table><tbody>
+        <tr><td>dA:</td><td><input x-model="dA" type="range" min="0.0" max="2.00" step="0.01" /></td><td x-text="dA"></td></tr>
+        <tr><td>dB:</td><td><input x-model="dB" type="range" min="0.0" max="2.00" step="0.01" /></td><td x-text="dB"></td></tr>
+        <tr><td>feed:</td><td><input x-model="feed" type="range" min="0.0" max="0.10" step="0.001" /></td><td x-text="feed"></td></tr>
+        <tr><td>kill:</td><td><input x-model="kill" type="range" min="0.0" max="0.10" step="0.001" /></td><td x-text="kill"></td></tr>
+      </tbody></table>
     </div>
     <script src="main.js" type="module"></script>
   </body>
