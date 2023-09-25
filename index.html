@@ -11,6 +11,11 @@
       </div>
       <div>
         <button @click="reset()">Reset</button>
+        <select x-model="drawMethod">
+          <template x-for="opt in drawMethodOptions" :key="opt.value">
+            <option :value="opt.value" x-text="opt.text" :selected="drawMethod==opt.value"></option>
+          </template>
+        </select>
       </div>
     </div>
     <script src="main.js" type="module"></script>

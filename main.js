@@ -6,6 +6,9 @@ const eulerZXY = (rx, ry, rz) => mat4.rotateY(mat4.rotateX(mat4.rotateZ(mat4.ide
 const WORKGROUP_SIZE = 8
 const GRID_SIZE = 256
 
+const DRAW_2D = '2d'
+const DRAW_CUBE = 'cube'
+
 class WgslFramework {
     async setUpWgsl() {
         if (!navigator.gpu) {
@@ -50,6 +53,7 @@ async function fetchTextFile(path) {
 class MyApp extends WgslFramework {
     page = 0
     erasePos = []
+    drawMethod = DRAW_2D
     drawing = false
 
     async start() {
@@ -59,7 +63,8 @@ class MyApp extends WgslFramework {
         this.setUpComputeData()
         this.setUpRenderingData()
         this.setUpSimulationPipelineData()
-        this.setUpCellPipelineData()
+        this.setUpCellPipeline3DData()
+        this.setUpCellPipeline2DData()
 
         this.setTouchEvents()
         this.startAnimation()
@@ -68,7 +73,8 @@ class MyApp extends WgslFramework {
     async loadShaderCode() {
         const shaderCodes = await Promise.all([
             fetchTextFile('reaction_diffusion_compute.wgsl'),
-            fetchTextFile('reaction_diffusion_render.wgsl'),
+            fetchTextFile('reaction_diffusion_render_2d.wgsl'),
+            fetchTextFile('reaction_diffusion_render_3d.wgsl'),
         ])
         this.shaderCodes = shaderCodes
     }
@@ -214,9 +220,14 @@ class MyApp extends WgslFramework {
             ],
         }
 
-        const cellShaderModule = this.device.createShaderModule({
-            label: 'Cell shader',
+        const cellShader2DModule = this.device.createShaderModule({
+            label: 'Cell shader 2D',
             code: this.shaderCodes[1],
+        })
+
+        const cellShader3DModule = this.device.createShaderModule({
+            label: 'Cell shader 3D',
+            code: this.shaderCodes[2],
         })
 
         this.texture = this.device.createTexture({
@@ -272,7 +283,8 @@ class MyApp extends WgslFramework {
         this.vertices = vertices
         this.vertexBuffer = vertexBuffer
         this.vertexBufferLayout = vertexBufferLayout
-        this.cellShaderModule = cellShaderModule
+        this.cellShader2DModule = cellShader2DModule
+        this.cellShader3DModule = cellShader3DModule
         this.simulationUniformBuffer = simulationUniformBuffer
         this.cellUniform = cellUniform
         this.cellUniformBuffer = cellUniformBuffer
@@ -335,7 +347,7 @@ class MyApp extends WgslFramework {
         this.simulationBindGroups = simulationBindGroups
     }
 
-    setUpCellPipelineData() {
+    setUpCellPipeline3DData() {
         const sampler = this.device.createSampler({
             addressModeU: 'repeat',
             addressModeV: 'repeat',
@@ -378,12 +390,12 @@ class MyApp extends WgslFramework {
             label: 'Cell pipeline',
             layout: cellPipelineLayout,
             vertex: {
-                module: this.cellShaderModule,
+                module: this.cellShader3DModule,
                 entryPoint: 'vertexMain',
                 buffers: [this.vertexBufferLayout],
             },
             fragment: {
-                module: this.cellShaderModule,
+                module: this.cellShader3DModule,
                 entryPoint: 'fragmentMain',
                 targets: [{
                     format: this.canvasFormat,
@@ -427,8 +439,83 @@ class MyApp extends WgslFramework {
             ],
         })
 
+        this.sampler = sampler
         this.cellPipeline = cellPipeline
         this.cellBindGroup = cellBindGroup
+    }
+
+    setUpCellPipeline2DData() {
+        const cellBindGroup2DLayout = this.device.createBindGroupLayout({
+            label: 'Cell Bind Group 2D Layout',
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    buffer: { type: 'uniform' },
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    sampler: { type: 'non-filtering' },
+                },
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    texture: { sampleType: 'unfilterable-float' },
+                },
+            ],
+        })
+
+        const cellPipeline2DLayout = this.device.createPipelineLayout({
+            label: 'Cell Pipeline 2D Layout',
+            bindGroupLayouts: [cellBindGroup2DLayout],
+        })
+
+        const cellPipeline2D = this.device.createRenderPipeline({
+            label: 'Cell pipeline 2D',
+            layout: cellPipeline2DLayout,
+            vertex: {
+                module: this.cellShader2DModule,
+                entryPoint: 'vertexMain',
+            },
+            fragment: {
+                module: this.cellShader2DModule,
+                entryPoint: 'fragmentMain',
+                targets: [{
+                    format: this.canvasFormat,
+                    blend: {
+                        color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+                        alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
+                    },
+                }],
+            },
+            primitive: {
+                topology: 'triangle-strip',
+                cullMode: 'back',
+            },
+        })
+
+        const cellBindGroup2D = this.device.createBindGroup({
+            label: 'Cell renderer bind group',
+            layout: cellBindGroup2DLayout,
+            entries: [
+                {
+                    binding: 0,
+                    resource: { buffer: this.materialUniformBuffer },
+                },
+                {
+                    binding: 1,
+                    resource: this.sampler,
+                },
+                {
+                    binding: 2,
+                    resource: this.texture.createView(),
+                },
+            ],
+        })
+
+        this.cellPipeline2D = cellPipeline2D
+        this.cellBindGroup2D = cellBindGroup2D
     }
 
     draw() {
@@ -464,27 +551,47 @@ class MyApp extends WgslFramework {
             },
         )
 
-        const pass = encoder.beginRenderPass({
-            colorAttachments: [{
-                view: this.context.getCurrentTexture().createView(),
-                loadOp: 'clear',
-                clearValue: { r: 0, g: 0, b: 0.2, a: 1.0 },
-                // clearValue: { r: 0xe1/255.0, g: 0xdd/255.0, b: 0xd3/255.0, a: 1.0 },
-                storeOp: 'store',
-            }],
-            depthStencilAttachment: {
-                view: this.depthTexture.createView(),
-                depthClearValue: 1.0,
-                depthLoadOp: 'clear',
-                depthStoreOp: 'store',
-            },
-        })
-
-        pass.setPipeline(this.cellPipeline)
-        pass.setBindGroup(0, this.cellBindGroup)
-        pass.setVertexBuffer(0, this.vertexBuffer)
-        pass.draw(this.vertices.length / 6)
-        pass.end()
+        switch (this.drawMethod) {
+        case DRAW_2D:
+            {
+                const pass = encoder.beginRenderPass({
+                    colorAttachments: [{
+                        view: this.context.getCurrentTexture().createView(),
+                        loadOp: 'clear',
+                        clearValue: { r: 0, g: 0, b: 0.2, a: 1.0 },
+                        storeOp: 'store',
+                    }],
+                })
+                pass.setPipeline(this.cellPipeline2D)
+                pass.setBindGroup(0, this.cellBindGroup2D)
+                pass.draw(4)
+                pass.end()
+            }
+            break
+        case DRAW_CUBE:
+            {
+                const pass = encoder.beginRenderPass({
+                    colorAttachments: [{
+                        view: this.context.getCurrentTexture().createView(),
+                        loadOp: 'clear',
+                        clearValue: { r: 0, g: 0, b: 0.2, a: 1.0 },
+                        storeOp: 'store',
+                    }],
+                    depthStencilAttachment: {
+                        view: this.depthTexture.createView(),
+                        depthClearValue: 1.0,
+                        depthLoadOp: 'clear',
+                        depthStoreOp: 'store',
+                    },
+                })
+                pass.setPipeline(this.cellPipeline)
+                pass.setBindGroup(0, this.cellBindGroup)
+                pass.setVertexBuffer(0, this.vertexBuffer)
+                pass.draw(this.vertices.length / 6)
+                pass.end()
+            }
+            break
+        }
 
         if (this.erasePos.length > 0) {
             const output = this.cellStateStorage[this.page]
@@ -613,6 +720,10 @@ class MyApp extends WgslFramework {
             document.addEventListener('mouseup', mouseup)
         })
     }
+
+    setDrawMethod(value) {
+        this.drawMethod = value
+    }
 }
 
 async function main() {
@@ -620,6 +731,18 @@ async function main() {
     await myapp.start()
 
     Alpine.data('initialData', () => ({
+        drawMethod: DRAW_2D,
+        drawMethodOptions: [
+            {value: DRAW_2D, text: '2D'},
+            {value: DRAW_CUBE, text: '立方体'},
+        ],
+
+        init() {
+            this.$watch('drawMethod', value => {
+                myapp.setDrawMethod(value)
+            })
+        },
+
         reset() {
             myapp.randomizeCellState()
         },
