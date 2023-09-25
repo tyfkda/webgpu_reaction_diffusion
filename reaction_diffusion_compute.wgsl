@@ -1,15 +1,16 @@
-struct CellState {
-    a: f32,
-    b: f32,
-    _c: f32,
-    _d: f32,
-};
 struct Uniform {
     grid: vec2f,
     dA: f32,
     dB: f32,
     feed: f32,
     kill: f32,
+};
+
+struct CellState {
+    a: f32,
+    b: f32,
+    _c: f32,
+    _d: f32,
 };
 
 @group(0) @binding(0) var<uniform> param: Uniform;

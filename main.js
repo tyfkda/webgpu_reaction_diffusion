@@ -258,6 +258,17 @@ class MyApp extends WgslFramework {
         })
         this.device.queue.writeBuffer(cellUniformBuffer, 0, cellUniform)
 
+        const materialUniform = new Float32Array([  // f32 4 vector x 2 (baseColor, cellColor)
+            0xe1/255.0, 0xdd/255.0, 0xd3/255.0, 1.0,
+            0x78/255.0, 0x45/255.0, 0x2a/255.0, 1.0,
+        ])
+        const materialUniformBuffer = this.device.createBuffer({
+            label: 'Uniform parameter',
+            size: materialUniform.byteLength,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        })
+        this.device.queue.writeBuffer(materialUniformBuffer, 0, materialUniform)
+
         this.vertices = vertices
         this.vertexBuffer = vertexBuffer
         this.vertexBufferLayout = vertexBufferLayout
@@ -265,6 +276,8 @@ class MyApp extends WgslFramework {
         this.simulationUniformBuffer = simulationUniformBuffer
         this.cellUniform = cellUniform
         this.cellUniformBuffer = cellUniformBuffer
+        this.materialUniform = materialUniform
+        this.materialUniformBuffer = materialUniformBuffer
     }
 
     setUpSimulationPipelineData() {
@@ -341,10 +354,15 @@ class MyApp extends WgslFramework {
                 {
                     binding: 1,
                     visibility: GPUShaderStage.FRAGMENT,
-                    sampler: { type: 'non-filtering' },
+                    buffer: { type: 'uniform' },
                 },
                 {
                     binding: 2,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    sampler: { type: 'non-filtering' },
+                },
+                {
+                    binding: 3,
                     visibility: GPUShaderStage.FRAGMENT,
                     texture: { sampleType: 'unfilterable-float' },
                 },
@@ -396,10 +414,14 @@ class MyApp extends WgslFramework {
                 },
                 {
                     binding: 1,
-                    resource: sampler,
+                    resource: { buffer: this.materialUniformBuffer },
                 },
                 {
                     binding: 2,
+                    resource: sampler,
+                },
+                {
+                    binding: 3,
                     resource: this.texture.createView(),
                 },
             ],
