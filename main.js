@@ -768,7 +768,7 @@ async function main() {
     const myapp = new MyApp()
     await myapp.start()
 
-    let settingPreset = false
+    let settingPreset = null
 
     Alpine.data('initialData', () => ({
         preset: PRESET_CORAL,
@@ -812,17 +812,18 @@ async function main() {
             if (value === PRESET_NONE)
                 return
 
-            settingPreset = true
+            settingPreset = value
             const table = PresetParameterTable[value]
             myapp.setParameter(0, this.dA = table[0].toFixed(2))
             myapp.setParameter(1, this.dB = table[1].toFixed(2))
             myapp.setParameter(2, this.feed = table[2].toFixed(3))
             myapp.setParameter(3, this.kill = table[3].toFixed(3))
-            settingPreset = false
+            // Turn off when Alpine fixed the change events.
+            setTimeout(() => settingPreset = null, 250)  // Wait for the parameter change
         },
 
         setParameter(index, value) {
-            if (settingPreset)
+            if (settingPreset === this.preset)
                 return
             myapp.setParameter(index, value)
             this.preset = PRESET_NONE
