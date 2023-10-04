@@ -76,7 +76,7 @@ async function fetchTextFile(path) {
 
 class MyApp extends WgslFramework {
     page = 0
-    erasePos = []
+    drawPos = []
     drawMethod = DRAW_2D
     drawing = false
 
@@ -618,7 +618,7 @@ class MyApp extends WgslFramework {
             break
         }
 
-        if (this.erasePos.length > 0) {
+        if (this.drawPos.length > 0) {
             const output = this.cellStateStorage[this.page]
             encoder.copyBufferToBuffer(
                 output,
@@ -631,7 +631,7 @@ class MyApp extends WgslFramework {
 
         this.device.queue.submit([encoder.finish()])
 
-        if (this.erasePos.length <= 0) {
+        if (this.drawPos.length <= 0) {
             this.drawing = false
         } else {
             this.runErase()
@@ -685,11 +685,13 @@ class MyApp extends WgslFramework {
         const width = GRID_SIZE
         const height = GRID_SIZE
 
-        for (let i = 0; i < this.erasePos.length; i += 2) {
-            const cx = this.erasePos[i]
-            const cy = this.erasePos[i + 1]
+        for (let i = 0; i < this.drawPos.length; i += 3) {
+            const cx = this.drawPos[i]
+            const cy = this.drawPos[i + 1]
+            const erase = this.drawPos[i + 2]
 
-            const radius = (GRID_SIZE / 32) | 0, radius2 = radius * radius
+            const radius = (erase ? GRID_SIZE / 32 : GRID_SIZE / 64) | 0
+            const radius2 = radius * radius
             const x = cx | 0, y = cy | 0
             const dx0 = Math.max(-radius, -x), dy0 = Math.max(-radius, -y)
             const dx1 = Math.min(radius, width - 1 - x), dy1 = Math.min(radius, height - 1 - y)
@@ -698,18 +700,23 @@ class MyApp extends WgslFramework {
                     if (dx * dx + dy * dy >= radius2)
                         continue
                     const i = ((y + dy) * GRID_SIZE + (x + dx)) * 4
-                    cellStateArray[i + 0] = 1.0  // a
-                    cellStateArray[i + 1] = 0.0  // b
+                    if (erase) {
+                        cellStateArray[i + 0] = 1.0  // a
+                        cellStateArray[i + 1] = 0.0  // b
+                    } else {
+                        cellStateArray[i + 0] = 0.0  // a
+                        cellStateArray[i + 1] = 1.0  // b
+                    }
                 }
             }
         }
-        this.erasePos.length = 0
+        this.drawPos.length = 0
 
         this.device.queue.writeBuffer(this.cellStateStorage[this.page], 0, cellStateArray)
     }
 
-    async pushErase(cx, cy) {
-        this.erasePos.push(cx, cy)
+    async pushDraw(cx, cy, erase) {
+        this.drawPos.push(cx, cy, erase)
     }
 
     startAnimation() {
@@ -729,7 +736,7 @@ class MyApp extends WgslFramework {
                 const cy = ev.clientY - clientRect.y
                 // console.log(`${cx}, ${cy}`)
                 if (0 <= cx && cx < canvas.width && 0 <= cy && cy < canvas.height) {
-                    this.pushErase(cx * GRID_SIZE / clientRect.width, (clientRect.height - 1 - cy) * GRID_SIZE / clientRect.height)
+                    this.pushDraw(cx * GRID_SIZE / clientRect.width, (clientRect.height - 1 - cy) * GRID_SIZE / clientRect.height, !ev.shiftKey)
                 }
             }
             erase(event)
