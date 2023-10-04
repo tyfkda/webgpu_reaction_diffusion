@@ -15,22 +15,17 @@ const PRESET_GIRAFFE = 'giraffe'
 const PRESET_SPOT = 'spot'
 const PRESET_MESH = 'mesh'
 const PRESET_BACTERIA = 'bacteria'
-const PRESET_URBAN_PLAN = 'urbanplan'
-const PRESET_LINE_LOOP = 'lineloop'
-const PRESET_MAZE = 'maze'
+const PRESET_NEON = 'neon'
 const PRESET_BUCHI = 'buchi'
 
 const PresetParameterTable = {
-    coral: new Float32Array([1.0, 0.5, 0.055, 0.062]),  // 珊瑚
-    giraffe: new Float32Array([0.92, 0.5, 0.088, 0.057]),  // キリン
-    spot: new Float32Array([1.0, 0.5, 0.026, 0.061]),  // ヒョウ
-    mesh: new Float32Array([1.0, 0.5, 0.035, 0.057]),  // あみあみ
-    bacteria: new Float32Array([0.9, 0.61, 0.023, 0.052]),  // バクテリア
-
-    urbanplan: new Float32Array([0.80, 0.40, 0.082, 0.060]),  // 都市計画
-    lineloop: new Float32Array([0.96, 0.54, 0.060, 0.062]),  // 線と輪
-    maze: new Float32Array([1.16, 0.48, 0.062, 0.064]),  // 迷路
-    buchi: new Float32Array([0.96, 0.53, 0.066, 0.061]),  // ブチ
+    coral: {     params: [1.0,  0.5,  0.055, 0.062], bgcolor: 0xAAC175, fgcolor: 0x101D35 },  // 珊瑚
+    giraffe: {   params: [0.92, 0.5,  0.088, 0.057], bgcolor: 0xe1ddd3, fgcolor: 0x78452a },  // キリン
+    spot: {      params: [1.0,  0.5,  0.026, 0.061], bgcolor: 0xD59E54, fgcolor: 0x2C1708 },  // ヒョウ
+    mesh: {      params: [1.0,  0.5,  0.035, 0.057], bgcolor: 0x423C30, fgcolor: 0xE2E0CC },  // あみあみ
+    bacteria: {  params: [0.9,  0.61, 0.023, 0.052], bgcolor: 0x962113, fgcolor: 0x1C0E11 },  // バクテリア
+    neon: {      params: [0.80, 0.40, 0.082, 0.060], bgcolor: 0x1A2027, fgcolor: 0xC5E59B },  // ネオン
+    buchi: {     params: [0.96, 0.53, 0.066, 0.061], bgcolor: 0xE8E6E0, fgcolor: 0x020202 },  // ブチ
 }
 
 class WgslFramework {
@@ -762,6 +757,20 @@ class MyApp extends WgslFramework {
         this.simulationUniform[index + 2] = value
         this.device.queue.writeBuffer(this.simulationUniformBuffer, 0, this.simulationUniform)
     }
+
+    setColors(bgcolor, fgcolor) {
+        const br = ((bgcolor >> 16) & 0xff) / 255.0
+        const bg = ((bgcolor >>  8) & 0xff) / 255.0
+        const bb = ( bgcolor        & 0xff) / 255.0
+        const fr = ((fgcolor >> 16) & 0xff) / 255.0
+        const fg = ((fgcolor >>  8) & 0xff) / 255.0
+        const fb = ( fgcolor        & 0xff) / 255.0
+        const materialUniform = new Float32Array([  // f32 4 vector x 2 (baseColor, cellColor)
+            br, bg, bb, 1.0,
+            fr, fg, fb, 1.0,
+        ])
+        this.device.queue.writeBuffer(this.materialUniformBuffer, 0, materialUniform)
+    }
 }
 
 async function main() {
@@ -780,9 +789,7 @@ async function main() {
             {value: PRESET_MESH, text: '網目'},
             {value: PRESET_BACTERIA, text: 'バクテリア'},
 
-            {value: PRESET_URBAN_PLAN, text: '都市計画'},
-            {value: PRESET_LINE_LOOP, text: '線と輪'},
-            {value: PRESET_MAZE, text: '迷路'},
+            {value: PRESET_NEON, text: 'ネオン'},
             {value: PRESET_BUCHI, text: 'ブチ'},
         ],
         drawMethod: DRAW_2D,
@@ -813,11 +820,12 @@ async function main() {
                 return
 
             settingPreset = value
-            const table = PresetParameterTable[value]
-            myapp.setParameter(0, this.dA = table[0].toFixed(2))
-            myapp.setParameter(1, this.dB = table[1].toFixed(2))
-            myapp.setParameter(2, this.feed = table[2].toFixed(3))
-            myapp.setParameter(3, this.kill = table[3].toFixed(3))
+            const {params, bgcolor, fgcolor} = PresetParameterTable[value]
+            myapp.setParameter(0, this.dA = params[0].toFixed(2))
+            myapp.setParameter(1, this.dB = params[1].toFixed(2))
+            myapp.setParameter(2, this.feed = params[2].toFixed(3))
+            myapp.setParameter(3, this.kill = params[3].toFixed(3))
+            myapp.setColors(bgcolor, fgcolor)
             // Turn off when Alpine fixed the change events.
             setTimeout(() => settingPreset = null, 250)  // Wait for the parameter change
         },
