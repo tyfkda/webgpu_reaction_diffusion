@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8">
     <title>WebGPU Life</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+    <meta name="robots" content="noindex">
     <style>
       .full-size {
         width: 100%;
@@ -30,7 +32,7 @@
       </div>
       <div x-cloak x-show="started">
         <div>
-          <canvas width="512" height="512"></canvas>
+          <canvas width="512" height="512" style="cursor:pointer"></canvas>
         </div>
         <div>
           <button @click="reset()">Reset</button>

@@ -7,7 +7,7 @@ const WORKGROUP_SIZE = 8
 const GRID_SIZE = 256
 
 const DRAW_2D = '2d'
-const DRAW_CUBE = 'cube'
+const DRAW_3D = '3d'
 
 const PRESET_NONE = ''
 const PRESET_CORAL = 'coral'
@@ -577,7 +577,7 @@ class MyApp extends WgslFramework {
                 pass.end()
             }
             break
-        case DRAW_CUBE:
+        case DRAW_3D:
             {
                 const pass = encoder.beginRenderPass({
                     colorAttachments: [{
@@ -713,11 +713,21 @@ class MyApp extends WgslFramework {
 
     setTouchEvents() {
         const canvas = this.canvas
-        canvas.addEventListener('mousedown', (event) => {
+        const mouseDown = (event) => {
+            if (event.type === 'mousedown' && event.button !== 0)
+                return
             const clientRect = canvas.getBoundingClientRect()
             const erase = (ev) => {
-                const cx = ev.clientX - clientRect.x
-                const cy = ev.clientY - clientRect.y
+                let cx, cy
+                if (ev.touches != null) {
+                    const touch = ev.touches[0]
+                    cx = touch.clientX - clientRect.x
+                    cy = touch.clientY - clientRect.y
+                    event.preventDefault()
+                } else {
+                    cx = ev.clientX - clientRect.x
+                    cy = ev.clientY - clientRect.y
+                }
                 // console.log(`${cx}, ${cy}`)
                 if (0 <= cx && cx < canvas.width && 0 <= cy && cy < canvas.height) {
                     this.pushDraw(cx * GRID_SIZE / clientRect.width, (clientRect.height - 1 - cy) * GRID_SIZE / clientRect.height, !ev.shiftKey)
@@ -731,10 +741,17 @@ class MyApp extends WgslFramework {
             const mouseup = (_event) => {
                 document.removeEventListener('mousemove', mousemove)
                 document.removeEventListener('mouseup', mouseup)
+                document.removeEventListener('touchmove', mousemove)
+                document.removeEventListener('touchend', mouseup)
             }
             document.addEventListener('mousemove', mousemove)
             document.addEventListener('mouseup', mouseup)
-        })
+            document.addEventListener('touchmove', mousemove)
+            document.addEventListener('touchend', mouseup)
+        }
+
+        canvas.addEventListener('mousedown', mouseDown)
+        canvas.addEventListener('touchstart', (event) => { event.preventDefault(); mouseDown(event) })
     }
 
     setDrawMethod(value) {
@@ -786,7 +803,7 @@ async function main() {
         drawMethod: DRAW_2D,
         drawMethodOptions: [
             {value: DRAW_2D, text: '2D'},
-            {value: DRAW_CUBE, text: '立方体'},
+            {value: DRAW_3D, text: '3D'},
         ],
         dA: 1.0,
         dB: 0.5,
