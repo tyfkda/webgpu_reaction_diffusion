@@ -162,12 +162,6 @@ class MyApp extends WgslFramework {
     }
 
     setUpRenderingData() {
-        // const vertices = new Float32Array([
-        //     -1.0, -1.0,  0.0, 0.0,
-        //     1.0, -1.0,   1.0, 0.0,
-        //     -1.0, 1.0,   0.0, 1.0,
-        //     1.0, 1.0,    1.0, 1.0,
-        // ])
         const vertices = new Float32Array([
             // float4 position, float4 UV
 
@@ -267,15 +261,6 @@ class MyApp extends WgslFramework {
         })
 
         const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.055, 0.062])
-        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.026, 0.061])  // 点々
-        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.057])  // あみあみ
-        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.035, 0.065])  // バクテリア
-        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 1.0, 0.5, 0.060, 0.062])  // Coral pattern
-        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 0.9, 0.61, 0.023, 0.052])  // 動き続ける
-
-        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4, 0.1*4, 0.082, 0.060])  // なにか
-        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 0.2*4.5, 0.1*4.5, 0.092, 0.057])
-        // const simulationUniform = new Float32Array([GRID_SIZE, GRID_SIZE, 0.92, 0.5, 0.088, 0.057])
 
         const simulationUniformBuffer = this.device.createBuffer({
             label: 'Uniform parameter',
