@@ -289,8 +289,8 @@ class MyApp extends WgslFramework {
         this.device.queue.writeBuffer(cellUniformBuffer, 0, cellUniform)
 
         const materialUniform = new Float32Array([  // f32 4 vector x 2 (baseColor, cellColor)
-            0xe1/255.0, 0xdd/255.0, 0xd3/255.0, 1.0,
-            0x78/255.0, 0x45/255.0, 0x2a/255.0, 1.0,
+            0xAA/255.0, 0xC1/255.0, 0x75/255.0, 1.0,
+            0x10/255.0, 0x1D/255.0, 0x35/255.0, 1.0,
         ])
         const materialUniformBuffer = this.device.createBuffer({
             label: 'Uniform parameter',
