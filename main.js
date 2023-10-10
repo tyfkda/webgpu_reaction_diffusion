@@ -29,8 +29,12 @@ const PresetParameterTable = {
 }
 
 class WgslFramework {
+    isSupported() {
+        return !!navigator.gpu
+    }
+
     async setUpWgsl() {
-        if (!navigator.gpu) {
+        if (!this.isSupported()) {
             throw new Error('WebGPU not supported on this browser.')
         }
 
@@ -775,11 +779,13 @@ class MyApp extends WgslFramework {
 
 async function main() {
     const myapp = new MyApp()
-    await myapp.start()
 
     let settingPreset = null
 
     Alpine.data('initialData', () => ({
+        supported: myapp.isSupported(),
+        started: false,
+
         preset: PRESET_CORAL,
         presetOptions: [
             {value: PRESET_NONE, text: ''},
@@ -809,6 +815,11 @@ async function main() {
             this.$watch('dB', value => this.setParameter(1, parseFloat(value)))
             this.$watch('feed', value => this.setParameter(2, parseFloat(value)))
             this.$watch('kill', value => this.setParameter(3, parseFloat(value)))
+        },
+
+        async run() {
+            this.started = true
+            await myapp.start()
         },
 
         reset() {
