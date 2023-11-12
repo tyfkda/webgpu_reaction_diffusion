@@ -783,16 +783,33 @@ class MyApp extends WgslFramework {
     }
 }
 
+function getUrlQueries() {
+    const queryStr = window.location.search.slice(1)  // 文頭?を除外
+    const queries = {}
+    if (queryStr !== '') {
+        queryStr.split('&').forEach((queryStr) => {
+            var queryArr = queryStr.split('=')
+            queries[queryArr[0]] = queryArr[1]
+        })
+    }
+    return queries
+}
+
 async function main() {
     const myapp = new MyApp()
 
     const supported = await myapp.isSupported()
+    let started = false
+    if (!getUrlQueries().wait) {
+        await myapp.start()
+        started = true
+    }
 
     let settingPreset = null
 
     Alpine.data('initialData', () => ({
         supported,
-        started: false,
+        started,
 
         preset: PRESET_CORAL,
         presetOptions: [
