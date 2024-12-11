@@ -30,13 +30,22 @@ const PresetParameterTable = {
 
 class WgslFramework {
     checked = false
+    textureFilterable = false
 
     async isSupported() {
         if (!this.checked) {
             if (navigator.gpu) {
                 const adapter = await navigator.gpu.requestAdapter()
                 if (adapter) {
-                    this.device = await adapter.requestDevice()
+                    const requiredFeatures = []
+                    if (adapter.features.has('float32-filterable')) {
+                        requiredFeatures.push('float32-filterable')
+                        this.textureFilterable = true
+                    }
+
+                    this.device = await adapter.requestDevice({
+                        requiredFeatures,
+                    })
                 }
             }
             this.checked = true
@@ -364,8 +373,8 @@ class MyApp extends WgslFramework {
         const sampler = this.device.createSampler({
             addressModeU: 'repeat',
             addressModeV: 'repeat',
-            // magFilter: 'linear',
-            // minFilter: 'linear',
+            magFilter: this.textureFilterable ? 'linear' : undefined,
+            minFilter: this.textureFilterable ? 'linear' : undefined,
         })
 
         const cellBindGroupLayout = this.device.createBindGroupLayout({
@@ -384,12 +393,12 @@ class MyApp extends WgslFramework {
                 {
                     binding: 2,
                     visibility: GPUShaderStage.FRAGMENT,
-                    sampler: { type: 'non-filtering' },
+                    sampler: { type: this.textureFilterable ? 'filtering' : 'non-filtering' },
                 },
                 {
                     binding: 3,
                     visibility: GPUShaderStage.FRAGMENT,
-                    texture: { sampleType: 'unfilterable-float' },
+                    texture: { sampleType: this.textureFilterable ? 'float' : 'unfilterable-float' },
                 },
             ],
         })
@@ -469,12 +478,12 @@ class MyApp extends WgslFramework {
                 {
                     binding: 1,
                     visibility: GPUShaderStage.FRAGMENT,
-                    sampler: { type: 'non-filtering' },
+                    sampler: { type: this.textureFilterable ? 'filtering' : 'non-filtering' },
                 },
                 {
                     binding: 2,
                     visibility: GPUShaderStage.FRAGMENT,
-                    texture: { sampleType: 'unfilterable-float' },
+                    texture: { sampleType: this.textureFilterable ? 'float' : 'unfilterable-float' },
                 },
             ],
         })
